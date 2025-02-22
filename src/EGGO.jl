@@ -52,9 +52,12 @@ function fit_ppffp(pp,ffp,basis_functions_1d)
     return xp,xf
 end
 
+function get_surfaces(dd::IMAS.dd, psirz, Ip,fcurrt,green,wall,Rb_target,Zb_target,pp_target,ffp_target,ecurrt_target, Btcenter,Rcenter,pend)
+    eqt = resize!(dd.equilibrium.time_slice)
+    get_surfaces(eqt, psirz, Ip,fcurrt,green,wall,Rb_target,Zb_target,pp_target,ffp_target,ecurrt_target, Btcenter,Rcenter,pend)
+end
 
-
-function get_surfaces(dd, psirz, Ip,fcurrt,green,wall,Rb_target,Zb_target,pp_target,ffp_target,ecurrt_target, Btcenter,Rcenter,pend)
+function get_surfaces(eqt::IMAS.equilibrium__time_slice, psirz, Ip,fcurrt,green,wall,Rb_target,Zb_target,pp_target,ffp_target,ecurrt_target, Btcenter,Rcenter,pend)
     r = range(green[:rgrid][1],green[:rgrid][end],length(green[:rgrid]))
     z = range(green[:zgrid][1],green[:zgrid][end],length(green[:zgrid]))
 
@@ -75,7 +78,8 @@ function get_surfaces(dd, psirz, Ip,fcurrt,green,wall,Rb_target,Zb_target,pp_tar
                                       PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
     
     dpsi = (Ψbnd-Ψaxis)/(green[:nw]-1)
-    psi1d = collect(Ψaxis:dpsi:Ψbnd)
+    psi1d = range(Ψaxis, Ψbnd,green[:nw])
+    dpsi = psi1d[2] .- psi1d[1]
     surfaces = IMAS.trace_simple_surfaces(psi1d,
         r,
         z,
@@ -106,8 +110,6 @@ function get_surfaces(dd, psirz, Ip,fcurrt,green,wall,Rb_target,Zb_target,pp_tar
         gm9[k] = IMAS.flux_surface_avg(f9, surface)
     end
 
-    eq = dd.equilibrium
-    eqt = resize!(dd.equilibrium.time_slice)
     eqt1d = eqt.profiles_1d
     eq2d = resize!(eqt.profiles_2d, 1)[1]
     
@@ -121,8 +123,8 @@ function get_surfaces(dd, psirz, Ip,fcurrt,green,wall,Rb_target,Zb_target,pp_tar
     eqt1d.dpressure_dpsi = pp_target / (2π)
     eqt1d.f_df_dpsi = ffp_target / (2π)
     
-    eq.vacuum_toroidal_field.b0 = Btcenter * ones(1)
-    eq.vacuum_toroidal_field.r0 = Rcenter 
+    eqt.global_quantities.vacuum_toroidal_field.b0 = Btcenter
+    eqt.global_quantities.vacuum_toroidal_field.r0 = Rcenter 
     
     fend = eqt.global_quantities.vacuum_toroidal_field.b0 * eqt.global_quantities.vacuum_toroidal_field.r0
     f2 = 2 * IMAS.cumtrapz(eqt1d.psi, eqt1d.f_df_dpsi)
@@ -141,7 +143,7 @@ function get_surfaces(dd, psirz, Ip,fcurrt,green,wall,Rb_target,Zb_target,pp_tar
     eq2d.grid.dim2 = collect(z)
     eq2d.psi = psirz * (2π)
 
-    return dd
+    return eqt
 end
 
 function minmax_normalize(x)
