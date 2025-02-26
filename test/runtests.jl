@@ -17,11 +17,13 @@ pend = 0.1
     model_name = :d3d_efit01
     green = EGGO.get_greens_function_tables(model_name)
     basis_functions = EGGO.get_basis_functions(model_name,green)
+    basis_functions_1d,bf1d_itp = EGGO.get_basis_functions_1d(model_name)
+
     wall = EGGO.get_wall(model_name)
     NNmodel = EGGO.get_model(model_name)
     model = NNmodel[:model]
 
-    Jt,psirz, Ip,fcurrt = EGGO.predict_model(Rb_target,Zb_target,pp_target,ffp_target,ecurrt_target,NNmodel, green, basis_functions)
+    Jt,psirz, Ip,fcurrt = EGGO.predict_model(Rb_target,Zb_target,pp_target,ffp_target,ecurrt_target,NNmodel, green, basis_functions,basis_functions_1d)
 
     dd = IMAS.dd()
     dd = EGGO.get_surfaces(dd,Matrix(transpose(psirz)),Ip,fcurrt,green,wall,Rb_target,Zb_target,pp_target,ffp_target,ecurrt_target,Btcenter,Rcenter,pend)
@@ -30,13 +32,4 @@ pend = 0.1
     @test psirz !== nothing
     @test Ip !== nothing
     @test fcurrt !== nothing
-end
-    
-
-@testset "test_basis1d" begin
-    model_name = :d3d_efit01
-    basis_functions_1d,bf1d_itp = EGGO.get_basis_functions_1d(model_name)
-    pp_fit,ffp_fit = EGGO.fit_ppffp(pp_target, ffp_target,basis_functions_1d)
-    @test pp_fit !== nothing 
-    @test ffp_fit !== nothing
 end
