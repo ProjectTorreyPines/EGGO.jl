@@ -235,11 +235,7 @@ function predict_model(bound_mxh::IMAS.MXH,pp_fit::Vector{Float64},ffp_fit::Vect
     predict_model(x, y, green, basis_functions, Ip_target)
 end #predict_model
 
-<<<<<<< HEAD
-function predict_model(x,y, green, basis_functions,basis, Ip_target=nothing)
-=======
 function predict_model(x, y, green, basis_functions, Ip_target=nothing)
->>>>>>> 896a8689de11476c876105ec2db6172f811391de
     nfsum = green[:nfsum]
     nesum = green[:nesum]
     nw = green[:nw]
