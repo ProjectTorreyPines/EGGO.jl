@@ -23,7 +23,7 @@ pend = 0.1
     NNmodel = EGGO.get_model(model_name)
     model = NNmodel[:model]
 
-    Jt,psirz, Ip,fcurrt = EGGO.predict_model(Rb_target,Zb_target,pp_target,ffp_target,ecurrt_target,NNmodel, green, basis_functions,basis_functions_1d)
+    Jt,psirz, Ip,fcurrt = EGGO.predict_model(Rb_target,Zb_target,collect(range(1, 1, nw)),pp_target,ffp_target,ecurrt_target,NNmodel, green, basis_functions,basis_functions_1d)
 
     dd = IMAS.dd()
     dd = EGGO.get_surfaces(dd,Matrix(transpose(psirz)),Ip,fcurrt,green,wall,Rb_target,Zb_target,pp_target,ffp_target,ecurrt_target,Btcenter,Rcenter,pend)
