@@ -231,32 +231,49 @@ function get_model(model_name)
         filename=dirname(@__DIR__) * "/models/model_efit01.bson"
     end
     return BSON.load(filename)[:NNmodel]
-end #get_wa
+end #get_model
+Vector{Float64}
 
-function predict_model(Rb,Zb,pp,ffp,ecurrt,NNmodel, green, basis_functions,Ip_target=nothing)
-    xunnorm = vcat(Rb,Zb,ffp,pp,ecurrt)
+function predict_model(Rb::Vector{Float64},Zb::Vector{Float64},pp::Vector{Float64},ffp::Vector{Float64},ecurrt::Vector{Float64}
+                    , NNmodel::Dict, green::Dict, basis_functions::Dict,basis_functions_1d::Dict,Ip_target=nothing)
+
+    bound_mxh = IMAS.MXH(Rb,Zb,4)
+    pp_fit,ffp_fit = fit_ppffp(pp,ffp,basis_functions_1d)
+
+    predict_model(bound_mxh,pp_fit,ffp_fit,ecurrt,NNmodel, green, basis_functions,Ip_target)
+end #predict_model
+
+function predict_model(bound_mxh::IMAS.MXH,pp_fit::Vector{Float64},ffp_fit::Vector{Float64},ecurrt::Vector{Float64},
+                       NNmodel::Dict, green::Dict, basis_functions::Dict,Ip_target=nothing)
+    xunnorm = vcat(bound_mxh.R0,bound_mxh.Z0,bound_mxh.ϵ,bound_mxh.κ,bound_mxh.tilt,bound_mxh.δ,bound_mxh.ζ,bound_mxh.𝚶,bound_mxh.twist,
+    bound_mxh.c,bound_mxh.s, pp_fit, ffp_fit, ecurrt)
+    #xunnorm = reshape(xunnorm,28,1)
+
+    println(size(xunnorm))
     model = NNmodel[:model]
     x_min = NNmodel[:x_min]
     x_max = NNmodel[:x_max]
     y_min = NNmodel[:y_min]
     y_max = NNmodel[:y_max]
+    #print(x_min)
     x = minmax_normalize(xunnorm,x_min,x_max)
     y = model(x)
+
     y = minmax_unnormalize(y, y_min, y_max)  # Convert back to original scale
     predict_model(x,y, green, basis_functions,Ip_target)
 end #predict_model
 
-function predict_model(x,y, green, basis_functions, Ip_target=nothing)
+function predict_model(x,y, green, basis_functions,basis, Ip_target=nothing)
     nfsum = green[:nfsum]
     nesum = green[:nesum]
     nw = green[:nw]
     nh = green[:nh]
-    nbbbs = 101
+    nbbbs = 9+4*2
 
     npca = length(basis_functions[:Ip])
 
     fcurrt = y[npca+1:npca+nfsum]
-    ecurrt = x[2*nw+2*nbbbs+1:end]
+    ecurrt = x[end-5:end]
     psiext_1d = sum(green[:ggridfc] .* reshape(fcurrt,1,nfsum), dims=2)
     psiext_1d .+= sum(green[:gridec] .* reshape(ecurrt,1,nesum), dims=2)[ :, :,1]
     psiext = reshape(psiext_1d,nh,nw)
