@@ -11,15 +11,15 @@ using RegularizedLeastSquares
 using PolygonOps
 
 
-function fit_ppffp(psi1d,pp, ffp, basis_functions_1d)
+function fit_ppffp(pp, ffp, basis_functions_1d)
     npp = size(basis_functions_1d[:pp])[1]
     nffp = size(basis_functions_1d[:ffp])[1]
 
     S = ADMM(transpose(basis_functions_1d[:pp]), reg=L1Regularization(1.0))
-    xp = solve!(S, IMAS.interp1d(psi1d,pp).(basis_functions_1d[:psi]))
+    xp = solve!(S, pp)
 
     Sf = ADMM(transpose(basis_functions_1d[:ffp]), reg=L1Regularization(1.0))
-    xf = solve!(Sf, IMAS.interp1d(psi1d,pp).(basis_functions_1d[:psi]))
+    xf = solve!(Sf, ffp)
     return xp, xf
 end
 
@@ -206,11 +206,11 @@ function get_model(model_name)
 end #get_model
 Vector{Float64}
 
-function predict_model(Rb::Vector{Float64},Zb::Vector{Float64},psin1d::Vector{Float64},pp::Vector{Float64},ffp::Vector{Float64},ecurrt::Vector{Float64},
+function predict_model(Rb::Vector{Float64},Zb::Vector{Float64},pp::Vector{Float64},ffp::Vector{Float64},ecurrt::Vector{Float64},
                        NNmodel::Dict, green::Dict, basis_functions::Dict,basis_functions_1d::Dict,Ip_target=nothing)
 
     bound_mxh = IMAS.MXH(Rb,Zb,4)
-    pp_fit,ffp_fit = fit_ppffp(psin1d,pp,ffp,basis_functions_1d)
+    pp_fit,ffp_fit = fit_ppffp(pp,ffp,basis_functions_1d)
 
     predict_model(bound_mxh,pp_fit,ffp_fit,ecurrt,NNmodel, green, basis_functions,Ip_target)
 end #predict_model
