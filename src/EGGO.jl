@@ -10,7 +10,6 @@ using Statistics
 using RegularizedLeastSquares
 using PolygonOps
 
-
 function fit_ppffp(pp, ffp, basis_functions_1d)
     S = ADMM(transpose(basis_functions_1d[:pp]), reg=L1Regularization(1.0))
     xp = solve!(S, pp)
@@ -328,7 +327,6 @@ function get_flux_surfaces(psi, Ip, fcurrt, green, wall, Rb_target, Zb_target, p
 
 end
 
-
 function in_core(r::Real, z::Real, psin::Real, psib::Real, bnd)
     #ellipse::Union{Nothing,AbstractVector{<:Real}}=nothing)
 
@@ -380,5 +378,9 @@ function get_Jt_fb(pp_fit, ffp_fit, psin_rz, basis_functions_1d, bf1d_itp, green
     return Jt_fb
 end
 
+export get_flux_surfaces, get_greens_function_tables, get_basis_functions, get_model, get_basis_functions_1d, predict_model
+
+const document = Dict()
+document[Symbol(@__MODULE__)] = [name for name in Base.names(@__MODULE__; all=false, imported=false) if name != Symbol(@__MODULE__)]
 
 end
