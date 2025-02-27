@@ -12,14 +12,12 @@ using PolygonOps
 
 
 function fit_ppffp(pp, ffp, basis_functions_1d)
-    npp = size(basis_functions_1d[:pp])[1]
-    nffp = size(basis_functions_1d[:ffp])[1]
-
     S = ADMM(transpose(basis_functions_1d[:pp]), reg=L1Regularization(1.0))
     xp = solve!(S, pp)
 
     Sf = ADMM(transpose(basis_functions_1d[:ffp]), reg=L1Regularization(1.0))
     xf = solve!(Sf, ffp)
+
     return xp, xf
 end
 
@@ -63,8 +61,6 @@ function get_surfaces(eqt::IMAS.equilibrium__time_slice, psirz, Ip, fcurrt, gree
     )
 
     nsurf = length(surfaces)
-    ffp = zeros(nsurf)
-    pp = zeros(nsurf)
     Vp = zeros(nsurf)
     gm1 = zeros(nsurf)
     gm9 = zeros(nsurf)
