@@ -197,9 +197,10 @@ function get_model(model_name)
     if model_name == :d3d_efit01
         filename = dirname(@__DIR__) * "/models/model_efit01.bson"
     end
-    return BSON.load(filename)[:NNmodel]
+    NNmodel = BSON.load(filename)[:NNmodel]
+    Flux.fmap(Flux.f64, NNmodel[:model]) # map to 64 bits
+    return NNmodel
 end #get_model
-Vector{Float64}
 
 function predict_model(Rb::Vector{Float64}, Zb::Vector{Float64}, pp::Vector{Float64}, ffp::Vector{Float64}, ecurrt::Vector{Float64},
     NNmodel::Dict, green::Dict, basis_functions::Dict, basis_functions_1d::Dict, Ip_target=nothing)
@@ -215,15 +216,17 @@ function predict_model(bound_mxh::IMAS.MXH, pp_fit::Vector{Float64}, ffp_fit::Ve
     xunnorm = vcat(bound_mxh.R0, bound_mxh.Z0, bound_mxh.ϵ, bound_mxh.κ, bound_mxh.tilt, bound_mxh.δ, bound_mxh.ζ, bound_mxh.𝚶, bound_mxh.twist,
         bound_mxh.c, bound_mxh.s, pp_fit, ffp_fit, ecurrt)
 
-    model = Flux.fmap(Flux.f64, NNmodel[:model])
+    model = NNmodel[:model]
+    
     x_min = NNmodel[:x_min]
     x_max = NNmodel[:x_max]
     y_min = NNmodel[:y_min]
     y_max = NNmodel[:y_max]
+
     x = minmax_normalize(xunnorm, x_min, x_max)
     y = model(x)
-
     y = minmax_unnormalize(y, y_min, y_max)  # Convert back to original scale
+
     predict_model(x, y, green, basis_functions, Ip_target)
 end #predict_model
 
@@ -232,7 +235,6 @@ function predict_model(x, y, green, basis_functions, Ip_target=nothing)
     nesum = green[:nesum]
     nw = green[:nw]
     nh = green[:nh]
-    nbbbs = 9 + 4 * 2
 
     npca = length(basis_functions[:Ip])
 
@@ -271,7 +273,6 @@ function predict_model(x, y, green, basis_functions, Ip_target=nothing)
 end #predict_model
 
 function get_flux_surfaces(psi, Ip, fcurrt, green, wall, Rb_target, Zb_target, pp_target, ffp_target, ecurrt_target)#(green)
-
     r = range(green[:rgrid][1], green[:rgrid][end], length(green[:rgrid]))
     z = range(green[:zgrid][1], green[:zgrid][end], length(green[:zgrid]))
     rwall = Float64.(wall[:rlim])
