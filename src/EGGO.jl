@@ -90,7 +90,6 @@ function get_surfaces(eqt::IMAS.equilibrium__time_slice, psirz, Ip, fcurrt, gree
     eqt.global_quantities.psi_axis = Ψaxis
     eqt1d.psi = psi1d * (2π)
 
-    Npsi = length(eqt1d.psi)
     eqt1d.dpressure_dpsi = pp_target / (2π)
     eqt1d.f_df_dpsi = ffp_target / (2π)
 
@@ -220,10 +219,8 @@ function predict_model(bound_mxh::IMAS.MXH,pp_fit::Vector{Float64},ffp_fit::Vect
                        NNmodel::Dict, green::Dict, basis_functions::Dict,Ip_target=nothing)
     xunnorm = vcat(bound_mxh.R0,bound_mxh.Z0,bound_mxh.ϵ,bound_mxh.κ,bound_mxh.tilt,bound_mxh.δ,bound_mxh.ζ,bound_mxh.𝚶,bound_mxh.twist,
     bound_mxh.c,bound_mxh.s, pp_fit, ffp_fit, ecurrt)
-    #xunnorm = reshape(xunnorm,28,1)
 
-    println(size(xunnorm))
-    model = NNmodel[:model]
+    model = Flux.fmap(Flux.f64, NNmodel[:model])
     x_min = NNmodel[:x_min]
     x_max = NNmodel[:x_max]
     y_min = NNmodel[:y_min]
