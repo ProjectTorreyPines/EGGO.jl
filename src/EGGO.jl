@@ -84,10 +84,10 @@ function get_surfaces(eqt::IMAS.equilibrium__time_slice, psirz, Ip, fcurrt, gree
     eqt.global_quantities.magnetic_axis.z = Zaxis
     eqt.global_quantities.psi_boundary = Ψbnd
     eqt.global_quantities.psi_axis = Ψaxis
-    eqt1d.psi = psi1d * (2π)
+    eqt1d.psi = psi1d * 2π
 
-    eqt1d.dpressure_dpsi = pp_target / (2π)
-    eqt1d.f_df_dpsi = ffp_target / (2π)
+    eqt1d.dpressure_dpsi = pp_target / 2π
+    eqt1d.f_df_dpsi = ffp_target / 2π
 
     eqt.global_quantities.vacuum_toroidal_field.b0 = Btcenter
     eqt.global_quantities.vacuum_toroidal_field.r0 = Rcenter
@@ -101,13 +101,13 @@ function get_surfaces(eqt::IMAS.equilibrium__time_slice, psirz, Ip, fcurrt, gree
     eqt1d.pressure .+= pend .- eqt1d.pressure[end]
     eqt1d.gm1 = gm1
     eqt1d.gm9 = gm9
-    eqt1d.dvolume_dpsi = Vp / (2π)
-    eqt1d.q = eqt1d.dvolume_dpsi .* eqt1d.f .* eqt1d.gm1 / (2π)
+    eqt1d.dvolume_dpsi = Vp / 2π
+    eqt1d.q = eqt1d.dvolume_dpsi .* eqt1d.f .* eqt1d.gm1 / 2π
 
     eq2d.grid_type.index = 1
     eq2d.grid.dim1 = collect(r)
     eq2d.grid.dim2 = collect(z)
-    eq2d.psi = psirz * (2π)
+    eq2d.psi = psirz * 2π
 
     return eqt
 end
@@ -202,19 +202,19 @@ function get_model(model_name)
 end #get_model
 Vector{Float64}
 
-function predict_model(Rb::Vector{Float64},Zb::Vector{Float64},pp::Vector{Float64},ffp::Vector{Float64},ecurrt::Vector{Float64},
-                       NNmodel::Dict, green::Dict, basis_functions::Dict,basis_functions_1d::Dict,Ip_target=nothing)
+function predict_model(Rb::Vector{Float64}, Zb::Vector{Float64}, pp::Vector{Float64}, ffp::Vector{Float64}, ecurrt::Vector{Float64},
+    NNmodel::Dict, green::Dict, basis_functions::Dict, basis_functions_1d::Dict, Ip_target=nothing)
 
-    bound_mxh = IMAS.MXH(Rb,Zb,4)
-    pp_fit,ffp_fit = fit_ppffp(pp,ffp,basis_functions_1d)
+    bound_mxh = IMAS.MXH(Rb, Zb, 4)
+    pp_fit, ffp_fit = fit_ppffp(pp, ffp, basis_functions_1d)
 
-    predict_model(bound_mxh,pp_fit,ffp_fit,ecurrt,NNmodel, green, basis_functions,Ip_target)
+    predict_model(bound_mxh, pp_fit, ffp_fit, ecurrt, NNmodel, green, basis_functions, Ip_target)
 end #predict_model
 
-function predict_model(bound_mxh::IMAS.MXH,pp_fit::Vector{Float64},ffp_fit::Vector{Float64},ecurrt::Vector{Float64},
-                       NNmodel::Dict, green::Dict, basis_functions::Dict,Ip_target=nothing)
-    xunnorm = vcat(bound_mxh.R0,bound_mxh.Z0,bound_mxh.ϵ,bound_mxh.κ,bound_mxh.tilt,bound_mxh.δ,bound_mxh.ζ,bound_mxh.𝚶,bound_mxh.twist,
-    bound_mxh.c,bound_mxh.s, pp_fit, ffp_fit, ecurrt)
+function predict_model(bound_mxh::IMAS.MXH, pp_fit::Vector{Float64}, ffp_fit::Vector{Float64}, ecurrt::Vector{Float64},
+    NNmodel::Dict, green::Dict, basis_functions::Dict, Ip_target=nothing)
+    xunnorm = vcat(bound_mxh.R0, bound_mxh.Z0, bound_mxh.ϵ, bound_mxh.κ, bound_mxh.tilt, bound_mxh.δ, bound_mxh.ζ, bound_mxh.𝚶, bound_mxh.twist,
+        bound_mxh.c, bound_mxh.s, pp_fit, ffp_fit, ecurrt)
 
     model = Flux.fmap(Flux.f64, NNmodel[:model])
     x_min = NNmodel[:x_min]
@@ -233,18 +233,18 @@ function predict_model(x, y, green, basis_functions, Ip_target=nothing)
     nesum = green[:nesum]
     nw = green[:nw]
     nh = green[:nh]
-    nbbbs = 9+4*2
+    nbbbs = 9 + 4 * 2
 
     npca = length(basis_functions[:Ip])
 
     fcurrt = y[npca+1:npca+nfsum]
     ecurrt = x[end-5:end]
-    psiext_1d = sum(green[:ggridfc] .* reshape(fcurrt,1,nfsum), dims=2)
-    psiext_1d .+= sum(green[:gridec] .* reshape(ecurrt,1,nesum), dims=2)[ :, :,1]
-    psiext = reshape(psiext_1d,nh,nw)
-    psipla = zeros(nw,nh)
-    
-    Ip =0
+    psiext_1d = sum(green[:ggridfc] .* reshape(fcurrt, 1, nfsum), dims=2)
+    psiext_1d .+= sum(green[:gridec] .* reshape(ecurrt, 1, nesum), dims=2)[:, :, 1]
+    psiext = reshape(psiext_1d, nh, nw)
+    psipla = zeros(nw, nh)
+
+    Ip = 0
     for ipca in 1:npca
         Ip += y[ipca] * basis_functions[:Ip][ipca]
     end
