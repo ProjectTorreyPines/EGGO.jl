@@ -281,7 +281,7 @@ function predict_model(x, y, green, basis_functions, Ip_target=nothing)
         Ip += y[ipca] * basis_functions[:Ip][ipca]
     end
 
-    if Ip_target != nothing
+    if Ip_target !== nothing
         y .*= Ip_target / Ip
         Ip = Ip_target
     end
@@ -289,7 +289,7 @@ function predict_model(x, y, green, basis_functions, Ip_target=nothing)
         psipla .+= y[ipca] .* transpose(basis_functions[:psi][:, :, ipca])
     end
 
-    psi = -1.0 * (psiext - psipla)
+    psirz = -1.0 * (psiext - psipla)
 
     Ip = 0.0
     for ipca in 1:npca
@@ -301,7 +301,7 @@ function predict_model(x, y, green, basis_functions, Ip_target=nothing)
         Jt .+= y[ipca] .* transpose(basis_functions[:Jt][:, :, ipca])
     end
 
-    return Jt, psi, Ip, fcurrt
+    return Jt, Matrix(transpose(psirz)), Ip, fcurrt
 end #predict_model
 
 function get_flux_surfaces(psi, Ip, fcurrt, green, wall, Rb_target, Zb_target, pp_target, ffp_target, ecurrt_target)#(green)
