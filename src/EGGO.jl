@@ -77,20 +77,17 @@ function get_surfaces(eqt::IMAS.equilibrium__time_slice, psirz, Ip, fcurrt, gree
         gm9[k] = IMAS.flux_surface_avg(f9, surface)
     end
 
-    eqt1d = eqt.profiles_1d
-    eq2d = resize!(eqt.profiles_2d, 1)[1]
-
     eqt.global_quantities.magnetic_axis.r = Raxis
     eqt.global_quantities.magnetic_axis.z = Zaxis
     eqt.global_quantities.psi_boundary = Ψbnd
     eqt.global_quantities.psi_axis = Ψaxis
-    eqt1d.psi = psi1d * 2π
-
-    eqt1d.dpressure_dpsi = pp_target / 2π
-    eqt1d.f_df_dpsi = ffp_target / 2π
-
     eqt.global_quantities.vacuum_toroidal_field.b0 = Btcenter
     eqt.global_quantities.vacuum_toroidal_field.r0 = Rcenter
+
+    eqt1d = eqt.profiles_1d
+    eqt1d.psi = psi1d * 2π
+    eqt1d.dpressure_dpsi = pp_target / 2π
+    eqt1d.f_df_dpsi = ffp_target / 2π
 
     fend = eqt.global_quantities.vacuum_toroidal_field.b0 * eqt.global_quantities.vacuum_toroidal_field.r0
     f2 = 2 * IMAS.cumtrapz(eqt1d.psi, eqt1d.f_df_dpsi)
@@ -104,6 +101,7 @@ function get_surfaces(eqt::IMAS.equilibrium__time_slice, psirz, Ip, fcurrt, gree
     eqt1d.dvolume_dpsi = Vp / 2π
     eqt1d.q = eqt1d.dvolume_dpsi .* eqt1d.f .* eqt1d.gm1 / 2π
 
+    eq2d = resize!(eqt.profiles_2d, 1)[1]
     eq2d.grid_type.index = 1
     eq2d.grid.dim1 = collect(r)
     eq2d.grid.dim2 = collect(z)
