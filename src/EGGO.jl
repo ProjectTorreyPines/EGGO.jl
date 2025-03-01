@@ -20,86 +20,45 @@ function fit_ppffp(pp, ffp, basis_functions_1d)
     return xp, xf
 end
 
-function get_surfaces(dd::IMAS.dd, psirz, Ip, fcurrt, green, wall, Rb_target, Zb_target, pp_target, ffp_target, ecurrt_target, Btcenter, Rcenter, pend)
-    eqt = resize!(dd.equilibrium.time_slice)
-    return get_surfaces(eqt, psirz, Ip, fcurrt, green, wall, Rb_target, Zb_target, pp_target, ffp_target, ecurrt_target, Btcenter, Rcenter, pend)
-end
-
-function get_surfaces(eqt::IMAS.equilibrium__time_slice, psirz, Ip, fcurrt, green, wall, Rb_target, Zb_target, pp_target, ffp_target, ecurrt_target, Btcenter, Rcenter, pend)
+function fill_eqt(eqt::IMAS.equilibrium__time_slice, psirz, green, wall, pp, ffp, Btcenter, Rcenter, pend)
     r = range(green[:rgrid][1], green[:rgrid][end], length(green[:rgrid]))
     z = range(green[:zgrid][1], green[:zgrid][end], length(green[:zgrid]))
-
-    rwall = Float64.(wall[:rlim])
-    zwall = Float64.(wall[:zlim])
-    PSI_itp = Interpolations.cubic_spline_interpolation((r, z), psirz; extrapolation_bc=Interpolations.Line())
 
     RR = hcat(green[:RR]...) |> x -> reshape(x, :, green[:nw])
     ZZ = hcat(green[:ZZ]...) |> x -> reshape(x, :, green[:nw])
     ind = argmin(psirz)
 
+    PSI_itp = Interpolations.cubic_spline_interpolation((r, z), psirz; extrapolation_bc=Interpolations.Line())
     Raxis, Zaxis = IMAS.find_magnetic_axis(r, z, PSI_itp, 1; rguess=RR[ind], zguess=ZZ[ind])
     Ψaxis = PSI_itp(Raxis, Zaxis)
     axis2bnd = :increasing
-    empty_r = zeros(1)[1:0]
-    empty_z = zeros(1)[1:0]
-    Ψbnd =
-        IMAS.find_psi_boundary(r, z, psirz, Ψaxis, axis2bnd, Raxis, Zaxis, rwall, zwall, empty_r, empty_z;
+    Ψbnd = IMAS.find_psi_boundary(r, z, psirz, Ψaxis, axis2bnd, Raxis, Zaxis, wall[:rlim], wall[:zlim];
             PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
 
     dpsi = (Ψbnd - Ψaxis) / (green[:nw] - 1)
     psi1d = range(Ψaxis, Ψbnd, green[:nw])
     dpsi = psi1d[2] .- psi1d[1]
-    surfaces = IMAS.trace_simple_surfaces(psi1d,
-        r,
-        z,
-        psirz,
-        PSI_itp,
-        Raxis,
-        Zaxis,
-        rwall,
-        zwall
-    )
 
-    nsurf = length(surfaces)
-    Vp = zeros(nsurf)
-    gm1 = zeros(nsurf)
-    gm9 = zeros(nsurf)
-    for (k, surface) in enumerate(surfaces)
-        sign_dpsi = -1
-        Vp[k] = sign_dpsi * surface.int_fluxexpansion_dl
-
-        # gm1 = <1/R^2>
-        f1 = (j, xx) -> surface.fluxexpansion[j] / surface.r[j]^2
-        gm1[k] = IMAS.flux_surface_avg(f1, surface)
-
-        # gm9 = <1/R>
-        f9 = (j, xx) -> surface.fluxexpansion[j] / surface.r[j]
-        gm9[k] = IMAS.flux_surface_avg(f9, surface)
-    end
-
+    eqt.global_quantities.vacuum_toroidal_field.r0 = Rcenter
+    eqt.global_quantities.vacuum_toroidal_field.b0 = Btcenter
+    eqt.global_quantities.magnetic_axis.z = Zaxis
     eqt.global_quantities.magnetic_axis.r = Raxis
     eqt.global_quantities.magnetic_axis.z = Zaxis
     eqt.global_quantities.psi_boundary = Ψbnd
     eqt.global_quantities.psi_axis = Ψaxis
-    eqt.global_quantities.vacuum_toroidal_field.b0 = Btcenter
-    eqt.global_quantities.vacuum_toroidal_field.r0 = Rcenter
 
     eqt1d = eqt.profiles_1d
     eqt1d.psi = psi1d * 2π
-    eqt1d.dpressure_dpsi = pp_target / 2π
-    eqt1d.f_df_dpsi = ffp_target / 2π
+    eqt1d.dpressure_dpsi = pp / 2π
+    eqt1d.f_df_dpsi = ffp / 2π
 
-    fend = eqt.global_quantities.vacuum_toroidal_field.b0 * eqt.global_quantities.vacuum_toroidal_field.r0
+    fend = Btcenter * Rcenter
     f2 = 2 * IMAS.cumtrapz(eqt1d.psi, eqt1d.f_df_dpsi)
     f2 .= f2 .- f2[end] .+ fend^2
     eqt1d.f = sign(fend) .* sqrt.(f2)
 
     eqt1d.pressure = IMAS.cumtrapz(eqt1d.psi, eqt1d.dpressure_dpsi)
     eqt1d.pressure .+= pend .- eqt1d.pressure[end]
-    eqt1d.gm1 = gm1
-    eqt1d.gm9 = gm9
-    eqt1d.dvolume_dpsi = Vp / 2π
-    eqt1d.q = eqt1d.dvolume_dpsi .* eqt1d.f .* eqt1d.gm1 / 2π
 
     eq2d = resize!(eqt.profiles_2d, 1)[1]
     eq2d.grid_type.index = 1

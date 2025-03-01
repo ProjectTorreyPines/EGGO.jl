@@ -27,7 +27,9 @@ pend = 0.1
     Jt, psirz, Ip, fcurrt = EGGO.predict_model(Rb_target, Zb_target, pp_target, ffp_target, ecurrt_target, NNmodel, green, basis_functions, basis_functions_1d)
 
     dd = IMAS.dd()
-    dd = EGGO.get_surfaces(dd, Matrix(transpose(psirz)), Ip, fcurrt, green, wall, Rb_target, Zb_target, pp_target, ffp_target, ecurrt_target, Btcenter, Rcenter, pend)
+    eqt = resize!(dd.equilibrium.time_slice)
+    EGGO.fill_eqt(eqt, psirz, green, wall, pp_target, ffp_target, Btcenter, Rcenter, pend)
+    IMAS.flux_surfaces(eqt, wall[:rlim], wall[:zlim])
 
     @test Jt !== nothing
     @test psirz !== nothing
