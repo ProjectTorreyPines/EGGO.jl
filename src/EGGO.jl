@@ -32,7 +32,8 @@ function fill_eqt(eqt::IMAS.equilibrium__time_slice, psirz, green, wall, pp, ffp
     Raxis, Zaxis = IMAS.find_magnetic_axis(r, z, PSI_itp, 1; rguess=RR[ind], zguess=ZZ[ind])
     Ψaxis = PSI_itp(Raxis, Zaxis)
     axis2bnd = :increasing
-    Ψbnd = IMAS.find_psi_boundary(r, z, psirz, Ψaxis, axis2bnd, Raxis, Zaxis, wall[:rlim], wall[:zlim];
+    Ψbnd =
+        IMAS.find_psi_boundary(r, z, psirz, Ψaxis, axis2bnd, Raxis, Zaxis, wall[:rlim], wall[:zlim];
             PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
 
     dpsi = (Ψbnd - Ψaxis) / (green[:nw] - 1)
@@ -156,7 +157,7 @@ function get_model(model_name)
         filename = dirname(@__DIR__) * "/models/model_efit01.bson"
     end
     NNmodel = BSON.load(filename)[:NNmodel]
-    Flux.fmap(Flux.f64, NNmodel[:model]) # map to 64 bits
+    NNmodel[:model] = Flux.fmap(Flux.f64, NNmodel[:model]) # map to 64 bits
     return NNmodel
 end #get_model
 
