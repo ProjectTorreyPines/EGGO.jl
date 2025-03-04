@@ -10,116 +10,69 @@ using Statistics
 using RegularizedLeastSquares
 using PolygonOps
 
+function fit_ppffp(pp, ffp, basis_functions_1d)
+    S = ADMM(transpose(basis_functions_1d[:pp]); reg=L1Regularization(1.0))
+    xp = solve!(S, pp)
 
-function fit_ppffp(psi1d,pp, ffp, basis_functions_1d)
-    npp = size(basis_functions_1d[:pp])[1]
-    nffp = size(basis_functions_1d[:ffp])[1]
+    Sf = ADMM(transpose(basis_functions_1d[:ffp]); reg=L1Regularization(1.0))
+    xf = solve!(Sf, ffp)
 
-    S = ADMM(transpose(basis_functions_1d[:pp]), reg=L1Regularization(1.0))
-    xp = solve!(S, IMAS.interp1d(psi1d,pp).(basis_functions_1d[:psi]))
-
-    Sf = ADMM(transpose(basis_functions_1d[:ffp]), reg=L1Regularization(1.0))
-    xf = solve!(Sf, IMAS.interp1d(psi1d,pp).(basis_functions_1d[:psi]))
     return xp, xf
 end
 
-function get_surfaces(dd::IMAS.dd, psirz, Ip, fcurrt, green, wall, Rb_target, Zb_target, pp_target, ffp_target, ecurrt_target, Btcenter, Rcenter, pend)
-    eqt = resize!(dd.equilibrium.time_slice)
-    get_surfaces(eqt, psirz, Ip, fcurrt, green, wall, Rb_target, Zb_target, pp_target, ffp_target, ecurrt_target, Btcenter, Rcenter, pend)
-end
-
-function get_surfaces(eqt::IMAS.equilibrium__time_slice, psirz, Ip, fcurrt, green, wall, Rb_target, Zb_target, pp_target, ffp_target, ecurrt_target, Btcenter, Rcenter, pend)
+function fill_eqt(eqt::IMAS.equilibrium__time_slice, psirz, green, wall, pp, ffp, Btcenter, Rcenter, pend)
     r = range(green[:rgrid][1], green[:rgrid][end], length(green[:rgrid]))
     z = range(green[:zgrid][1], green[:zgrid][end], length(green[:zgrid]))
-
-    rwall = Float64.(wall[:rlim])
-    zwall = Float64.(wall[:zlim])
-    PSI_itp = Interpolations.cubic_spline_interpolation((r, z), psirz; extrapolation_bc=Interpolations.Line())
 
     RR = hcat(green[:RR]...) |> x -> reshape(x, :, green[:nw])
     ZZ = hcat(green[:ZZ]...) |> x -> reshape(x, :, green[:nw])
     ind = argmin(psirz)
 
+    PSI_itp = Interpolations.cubic_spline_interpolation((r, z), psirz; extrapolation_bc=Interpolations.Line())
     Raxis, Zaxis = IMAS.find_magnetic_axis(r, z, PSI_itp, 1; rguess=RR[ind], zguess=ZZ[ind])
     Ψaxis = PSI_itp(Raxis, Zaxis)
     axis2bnd = :increasing
-    empty_r = zeros(1)[1:0]
-    empty_z = zeros(1)[1:0]
-    Ψbnd = IMAS.find_psi_boundary(r, z, psirz, Ψaxis, axis2bnd, Raxis, Zaxis, rwall, zwall, empty_r, empty_z;
-        PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
+    Ψbnd =
+        IMAS.find_psi_boundary(r, z, psirz, Ψaxis, axis2bnd, Raxis, Zaxis, wall[:rlim], wall[:zlim];
+            PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
 
     dpsi = (Ψbnd - Ψaxis) / (green[:nw] - 1)
     psi1d = range(Ψaxis, Ψbnd, green[:nw])
     dpsi = psi1d[2] .- psi1d[1]
-    surfaces = IMAS.trace_simple_surfaces(psi1d,
-        r,
-        z,
-        psirz,
-        PSI_itp,
-        Raxis,
-        Zaxis,
-        rwall,
-        zwall
-    )
 
-    nsurf = length(surfaces)
-    ffp = zeros(nsurf)
-    pp = zeros(nsurf)
-    Vp = zeros(nsurf)
-    gm1 = zeros(nsurf)
-    gm9 = zeros(nsurf)
-    for (k, surface) in enumerate(surfaces)
-        sign_dpsi = -1
-        Vp[k] = sign_dpsi * surface.int_fluxexpansion_dl
-
-        # gm1 = <1/R^2>
-        f1 = (j, xx) -> surface.fluxexpansion[j] / surface.r[j]^2
-        gm1[k] = IMAS.flux_surface_avg(f1, surface)
-
-        # gm9 = <1/R>
-        f9 = (j, xx) -> surface.fluxexpansion[j] / surface.r[j]
-        gm9[k] = IMAS.flux_surface_avg(f9, surface)
-    end
-
-    eqt1d = eqt.profiles_1d
-    eq2d = resize!(eqt.profiles_2d, 1)[1]
-
+    eqt.global_quantities.vacuum_toroidal_field.r0 = Rcenter
+    eqt.global_quantities.vacuum_toroidal_field.b0 = Btcenter
+    eqt.global_quantities.magnetic_axis.z = Zaxis
     eqt.global_quantities.magnetic_axis.r = Raxis
     eqt.global_quantities.magnetic_axis.z = Zaxis
     eqt.global_quantities.psi_boundary = Ψbnd
     eqt.global_quantities.psi_axis = Ψaxis
-    eqt1d.psi = psi1d * (2π)
 
-    Npsi = length(eqt1d.psi)
-    eqt1d.dpressure_dpsi = pp_target / (2π)
-    eqt1d.f_df_dpsi = ffp_target / (2π)
+    eqt1d = eqt.profiles_1d
+    eqt1d.psi = psi1d * 2π
+    eqt1d.dpressure_dpsi = pp / 2π
+    eqt1d.f_df_dpsi = ffp / 2π
 
-    eqt.global_quantities.vacuum_toroidal_field.b0 = Btcenter
-    eqt.global_quantities.vacuum_toroidal_field.r0 = Rcenter
-
-    fend = eqt.global_quantities.vacuum_toroidal_field.b0 * eqt.global_quantities.vacuum_toroidal_field.r0
+    fend = Btcenter * Rcenter
     f2 = 2 * IMAS.cumtrapz(eqt1d.psi, eqt1d.f_df_dpsi)
     f2 .= f2 .- f2[end] .+ fend^2
     eqt1d.f = sign(fend) .* sqrt.(f2)
 
     eqt1d.pressure = IMAS.cumtrapz(eqt1d.psi, eqt1d.dpressure_dpsi)
     eqt1d.pressure .+= pend .- eqt1d.pressure[end]
-    eqt1d.gm1 = gm1
-    eqt1d.gm9 = gm9
-    eqt1d.dvolume_dpsi = Vp / (2π)
-    eqt1d.q = eqt1d.dvolume_dpsi .* eqt1d.f .* eqt1d.gm1 / (2π)
 
+    eq2d = resize!(eqt.profiles_2d, 1)[1]
     eq2d.grid_type.index = 1
     eq2d.grid.dim1 = collect(r)
     eq2d.grid.dim2 = collect(z)
-    eq2d.psi = psirz * (2π)
+    eq2d.psi = psirz * 2π
 
     return eqt
 end
 
 function minmax_normalize(x)
-    min_x = minimum(x, dims=2)
-    max_x = maximum(x, dims=2)
+    min_x = minimum(x; dims=2)
+    max_x = maximum(x; dims=2)
     x_norm = (x .- min_x) ./ (max_x .- min_x .+ eps())  # Add eps() to avoid division by zero
     return x_norm, min_x, max_x
 end
@@ -209,36 +162,69 @@ function get_model(model_name)
     elseif model_name == :d3d_cake02
         filename = dirname(@__DIR__) * "/models/model_cake02.bson"
     end
-    return BSON.load(filename)[:NNmodel]
+    NNmodel = BSON.load(filename)[:NNmodel]
+    NNmodel[:model] = Flux.fmap(Flux.f64, NNmodel[:model]) # map to 64 bits
+    return NNmodel
 end #get_model
-Vector{Float64}
 
-function predict_model(Rb::Vector{Float64},Zb::Vector{Float64},psin1d::Vector{Float64},pp::Vector{Float64},ffp::Vector{Float64},ecurrt::Vector{Float64},
-                       NNmodel::Dict, green::Dict, basis_functions::Dict,basis_functions_1d::Dict,Ip_target=nothing)
+function predict_model(
+    Rb::Vector{Float64},
+    Zb::Vector{Float64},
+    pp::Vector{Float64},
+    ffp::Vector{Float64},
+    ecurrt::Vector{Float64},
+    NNmodel::Dict,
+    green::Dict,
+    basis_functions::Dict,
+    basis_functions_1d::Dict,
+    Ip_target=nothing
+)
 
-    bound_mxh = IMAS.MXH(Rb,Zb,4)
-    pp_fit,ffp_fit = fit_ppffp(psin1d,pp,ffp,basis_functions_1d)
+    bound_mxh = IMAS.MXH(Rb, Zb, 4)
+    pp_fit, ffp_fit = fit_ppffp(pp, ffp, basis_functions_1d)
 
-    predict_model(bound_mxh,pp_fit,ffp_fit,ecurrt,NNmodel, green, basis_functions,Ip_target)
+    return predict_model(bound_mxh, pp_fit, ffp_fit, ecurrt, NNmodel, green, basis_functions, Ip_target)
 end #predict_model
 
-function predict_model(bound_mxh::IMAS.MXH,pp_fit::Vector{Float64},ffp_fit::Vector{Float64},ecurrt::Vector{Float64},
-                       NNmodel::Dict, green::Dict, basis_functions::Dict,Ip_target=nothing)
-    xunnorm = vcat(bound_mxh.R0,bound_mxh.Z0,bound_mxh.ϵ,bound_mxh.κ,bound_mxh.tilt,bound_mxh.δ,bound_mxh.ζ,bound_mxh.𝚶,bound_mxh.twist,
-    bound_mxh.c,bound_mxh.s, pp_fit, ffp_fit, ecurrt)
-    #xunnorm = reshape(xunnorm,28,1)
+function predict_model(
+    bound_mxh::IMAS.MXH,
+    pp_fit::Vector{Float64},
+    ffp_fit::Vector{Float64},
+    ecurrt::Vector{Float64},
+    NNmodel::Dict,
+    green::Dict,
+    basis_functions::Dict,
+    Ip_target=nothing
+)
+    xunnorm = vcat(
+        bound_mxh.R0,
+        bound_mxh.Z0,
+        bound_mxh.ϵ,
+        bound_mxh.κ,
+        bound_mxh.tilt,
+        bound_mxh.δ,
+        bound_mxh.ζ,
+        bound_mxh.𝚶,
+        bound_mxh.twist,
+        bound_mxh.c,
+        bound_mxh.s,
+        pp_fit,
+        ffp_fit,
+        ecurrt
+    )
 
-    println(size(xunnorm))
     model = NNmodel[:model]
+
     x_min = NNmodel[:x_min]
     x_max = NNmodel[:x_max]
     y_min = NNmodel[:y_min]
     y_max = NNmodel[:y_max]
+
     x = minmax_normalize(xunnorm, x_min, x_max)
     y = model(x)
-
     y = minmax_unnormalize(y, y_min, y_max)  # Convert back to original scale
-    predict_model(x, y, green, basis_functions, Ip_target)
+
+    return predict_model(x, y, green, basis_functions, Ip_target)
 end #predict_model
 
 function predict_model(x, y, green, basis_functions, Ip_target=nothing)
@@ -246,23 +232,22 @@ function predict_model(x, y, green, basis_functions, Ip_target=nothing)
     nesum = green[:nesum]
     nw = green[:nw]
     nh = green[:nh]
-    nbbbs = 9+4*2
 
     npca = length(basis_functions[:Ip])
 
     fcurrt = y[npca+1:npca+nfsum]
     ecurrt = x[end-5:end]
-    psiext_1d = sum(green[:ggridfc] .* reshape(fcurrt,1,nfsum), dims=2)
-    psiext_1d .+= sum(green[:gridec] .* reshape(ecurrt,1,nesum), dims=2)[ :, :,1]
-    psiext = reshape(psiext_1d,nh,nw)
-    psipla = zeros(nw,nh)
-    
-    Ip =0
+    psiext_1d = sum(green[:ggridfc] .* reshape(fcurrt, 1, nfsum); dims=2)
+    psiext_1d .+= sum(green[:gridec] .* reshape(ecurrt, 1, nesum); dims=2)[:, :, 1]
+    psiext = reshape(psiext_1d, nh, nw)
+    psipla = zeros(nw, nh)
+
+    Ip = 0.0
     for ipca in 1:npca
         Ip += y[ipca] * basis_functions[:Ip][ipca]
     end
 
-    if Ip_target != nothing
+    if Ip_target !== nothing
         y .*= Ip_target / Ip
         Ip = Ip_target
     end
@@ -270,9 +255,9 @@ function predict_model(x, y, green, basis_functions, Ip_target=nothing)
         psipla .+= y[ipca] .* transpose(basis_functions[:psi][:, :, ipca])
     end
 
-    psi = -1.0 * (psiext - psipla)
+    psirz = -1.0 * (psiext - psipla)
 
-    Ip = 0
+    Ip = 0.0
     for ipca in 1:npca
         Ip += y[ipca] * basis_functions[:Ip][ipca]
     end
@@ -281,11 +266,11 @@ function predict_model(x, y, green, basis_functions, Ip_target=nothing)
     for ipca in 1:npca
         Jt .+= y[ipca] .* transpose(basis_functions[:Jt][:, :, ipca])
     end
-    return Jt, psi, Ip, fcurrt
+
+    return Jt, Matrix(transpose(psirz)), Ip, fcurrt
 end #predict_model
 
 function get_flux_surfaces(psi, Ip, fcurrt, green, wall, Rb_target, Zb_target, pp_target, ffp_target, ecurrt_target)#(green)
-
     r = range(green[:rgrid][1], green[:rgrid][end], length(green[:rgrid]))
     z = range(green[:zgrid][1], green[:zgrid][end], length(green[:zgrid]))
     rwall = Float64.(wall[:rlim])
@@ -300,20 +285,12 @@ function get_flux_surfaces(psi, Ip, fcurrt, green, wall, Rb_target, Zb_target, p
     axis2bnd = :increasing
     empty_r = zeros(1)[1:0]
     empty_z = zeros(1)[1:0]
-    Ψbnd = IMAS.find_psi_boundary(r, z, psi, psiaxis, axis2bnd, Raxis, Zaxis, rwall, zwall, empty_r, empty_z;
-        PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
+    Ψbnd =
+        IMAS.find_psi_boundary(r, z, psi, psiaxis, axis2bnd, Raxis, Zaxis, rwall, zwall, empty_r, empty_z;
+            PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
 
     dpsi = (Ψbnd - psiaxis) / (green[:nw] - 1)
-    surfaces = IMAS.trace_simple_surfaces(collect(psiaxis:dpsi:Ψbnd),
-        r,
-        z,
-        psi,
-        PSI_itp,
-        Raxis,
-        Zaxis,
-        rwall,
-        zwall
-    )
+    surfaces = IMAS.trace_simple_surfaces(collect(psiaxis:dpsi:Ψbnd), r, z, psi, PSI_itp, Raxis, Zaxis, rwall, zwall)
 
     nsurf = length(surfaces)
     ffp = zeros(nsurf)
@@ -340,7 +317,6 @@ function get_flux_surfaces(psi, Ip, fcurrt, green, wall, Rb_target, Zb_target, p
     end
 
 end
-
 
 function in_core(r::Real, z::Real, psin::Real, psib::Real, bnd)
     #ellipse::Union{Nothing,AbstractVector{<:Real}}=nothing)
@@ -393,5 +369,9 @@ function get_Jt_fb(pp_fit, ffp_fit, psin_rz, basis_functions_1d, bf1d_itp, green
     return Jt_fb
 end
 
+export get_flux_surfaces, get_greens_function_tables, get_basis_functions, get_model, get_basis_functions_1d, predict_model
+
+const document = Dict()
+document[Symbol(@__MODULE__)] = [name for name in Base.names(@__MODULE__; all=false, imported=false) if name != Symbol(@__MODULE__)]
 
 end
