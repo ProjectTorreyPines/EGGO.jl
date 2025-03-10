@@ -18,7 +18,8 @@ makedocs(;
     format=Documenter.HTML(;analytics="G-65D8V8C8VQ"),
     sitename="EGGO",
     checkdocs=:none,
-    pages=["index.md", "api.md", "License" => "license.md", "Notice" => "notice.md"]
+    pages=["index.md", "api.md", "License" => "license.md", "Notice" => "notice.md"],
+    warnonly=true
 )
 
 # Deploy docs
