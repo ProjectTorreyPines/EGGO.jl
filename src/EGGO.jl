@@ -94,7 +94,7 @@ function get_basis_functions(model_name, green)
     nh = green[:nh]
     nsilop = green[:nsilop]
     magpr2 = green[:magpr2]
-    basis_functions = BSON.load(filename)
+    basis_functions = BSON.load(filename, @__MODULE__)
     basis_functions[:psi_loop] = hcat(basis_functions[:psi_loop]...) |> x -> reshape(x, nsilop, :)
     basis_functions[:bp_probe] = hcat(basis_functions[:bp_probe]...) |> x -> reshape(x, magpr2, :)
     basis_functions[:Ip] = hcat(basis_functions[:Ip]...) |> x -> reshape(x, 1, :)
@@ -112,7 +112,7 @@ function get_basis_functions_1d(model_name)
     end
 
     # Create interpolation of these functions on import
-    basis_functions_1d = BSON.load(filename)[:basis_functions_1d]
+    basis_functions_1d = BSON.load(filename, @__MODULE__)[:basis_functions_1d]
     bf1d_itp = Dict()
     bf1d_itp[:pp] = Vector()
     for i in 1:size(basis_functions_1d[:pp])[1]
@@ -130,7 +130,7 @@ function get_greens_function_tables(model_name)
     if model_name == :d3d_efit01
         filename = dirname(@__DIR__) * "/models/green.bson"
     end
-    green = BSON.load(filename)
+    green = BSON.load(filename, @__MODULE__)
 
     green[:rsilfc] = hcat(green[:rsilfc]...) |> x -> reshape(x, :, green[:nfsum])
     green[:rsilec] = hcat(green[:rsilec]...) |> x -> reshape(x, :, green[:nesum])
@@ -146,7 +146,7 @@ function get_wall(model_name)
         filename = dirname(@__DIR__) * "/models/wall.bson"
     end
 
-    wall = BSON.load(filename)
+    wall = BSON.load(filename, @__MODULE__)
     wall[:rlim] = Float64.(wall[:rlim])
     wall[:zlim] = Float64.(wall[:zlim])
     return wall
@@ -156,7 +156,7 @@ function get_model(model_name)
     if model_name == :d3d_efit01
         filename = dirname(@__DIR__) * "/models/model_efit01.bson"
     end
-    NNmodel = BSON.load(filename)[:NNmodel]
+    NNmodel = BSON.load(filename, @__MODULE__)[:NNmodel]
     NNmodel[:model] = Flux.fmap(Flux.f64, NNmodel[:model]) # map to 64 bits
     return NNmodel
 end #get_model
