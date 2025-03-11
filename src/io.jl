@@ -52,7 +52,7 @@ function read_hdf5_auto(filename)
         for key in keys(file)
             dataset = file[key]
             dims = size(dataset)
-            data_dict[Symbol(key)] = dataset[fill(:, length(dims))...]  
+            data_dict[Symbol(key)] = dataset[fill(:, length(dims))...]
         end
     end
     return data_dict
@@ -62,8 +62,8 @@ function get_model(model_name)
     if model_name == :d3d_efit01
         filename = dirname(@__DIR__) * "/models/model_efit01.bson"
     end
-    NNmodel = Dict{Symbol, Any}()
-    for (field,value) in BSON.load(filename, @__MODULE__)[:NNmodel]
+    NNmodel = Dict{Symbol,Any}()
+    for (field, value) in BSON.load(filename, @__MODULE__)[:NNmodel]
         NNmodel[field] = value
     end
     NNmodel[:model] = Flux.fmap(Flux.f64, NNmodel[:model]) # map to 64 bits
