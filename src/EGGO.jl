@@ -24,8 +24,8 @@ function fill_eqt(eqt::IMAS.equilibrium__time_slice, psirz, green, wall, pp, ffp
     r = range(green[:rgrid][1], green[:rgrid][end], length(green[:rgrid]))
     z = range(green[:zgrid][1], green[:zgrid][end], length(green[:zgrid]))
 
-    RR = hcat(green[:RR]...) |> x -> reshape(x, :, green[:nw])
-    ZZ = hcat(green[:ZZ]...) |> x -> reshape(x, :, green[:nw])
+    RR = green[:RR]
+    ZZ = green[:ZZ]
     ind = argmin(psirz)
 
     PSI_itp = Interpolations.cubic_spline_interpolation((r, z), psirz; extrapolation_bc=Interpolations.Line())
@@ -138,6 +138,10 @@ function get_greens_function_tables(model_name)
     green[:rmp2ec] = hcat(green[:rmp2ec]...) |> x -> reshape(x, :, green[:nesum])
     green[:ggridfc] = hcat(green[:ggridfc]...) |> x -> reshape(x, :, green[:nfsum])
     green[:gridec] = hcat(green[:gridec]...) |> x -> reshape(x, :, green[:nesum])
+    green[:RR] = hcat(green[:RR]...) |> x -> reshape(x, :, green[:nw])
+    green[:ZZ] = hcat(green[:ZZ]...) |> x -> reshape(x, :, green[:nw])
+    green[:rgrid] = Float64.(green[:rgrid])
+    green[:zgrid] = Float64.(green[:zgrid])
     return green
 end #get_greens_function_tables
 
@@ -145,7 +149,6 @@ function get_wall(model_name)
     if model_name == :d3d_efit01
         filename = dirname(@__DIR__) * "/models/wall.bson"
     end
-
     wall = BSON.load(filename, @__MODULE__)
     wall[:rlim] = Float64.(wall[:rlim])
     wall[:zlim] = Float64.(wall[:zlim])
