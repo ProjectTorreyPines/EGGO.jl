@@ -18,7 +18,7 @@ pend = 0.1
     model_name = :d3d_efit01
     basis_functions_1d, bf1d_itp = EGGO.get_basis_functions_1d(model_name)
     green = EGGO.get_greens_function_tables(model_name)
-    basis_functions = EGGO.get_basis_functions(model_name, green)
+    basis_functions = EGGO.get_basis_functions(model_name)
 
     wall = EGGO.get_wall(model_name)
     NNmodel = EGGO.get_model(model_name)
