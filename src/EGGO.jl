@@ -112,7 +112,10 @@ function get_basis_functions_1d(model_name)
     end
 
     # Create interpolation of these functions on import
-    basis_functions_1d = BSON.load(filename, @__MODULE__)[:basis_functions_1d]
+    basis_functions_1d = BSON.load(filename, @__MODULE__)
+    if :basis_functions_1d in keys(basis_functions_1d)
+        basis_functions_1d = basis_functions_1d[:basis_functions_1d]
+    end
     bf1d_itp = Dict()
     bf1d_itp[:pp] = Vector()
     for i in 1:size(basis_functions_1d[:pp])[1]
