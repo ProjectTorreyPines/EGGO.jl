@@ -89,6 +89,8 @@ end
 function get_basis_functions(model_name, green)
     if model_name == :d3d_efit01
         filename = dirname(@__DIR__) * "/models/basis_functions.bson"
+    elseif model_name == :d3d_cake02
+        filename = dirname(@__DIR__) * "/models/basis_functions_cake02.bson"
     end
     nw = green[:nw]
     nh = green[:nh]
@@ -109,6 +111,8 @@ end #get_basis_functions
 function get_basis_functions_1d(model_name)
     if model_name == :d3d_efit01
         filename = dirname(@__DIR__) * "/models/basis_functions_1d.bson"
+    elseif model_name == :d3d_cake02
+        filename = dirname(@__DIR__) * "/models/basis_functions_1d_cake02.bson"
     end
 
     # Create interpolation of these functions on import
@@ -127,7 +131,7 @@ function get_basis_functions_1d(model_name)
 end #get_basis_functions_1d
 
 function get_greens_function_tables(model_name)
-    if model_name == :d3d_efit01
+    if model_name == :d3d_efit01 ||  model_name ==:d3d_cake02
         filename = dirname(@__DIR__) * "/models/green.bson"
     end
     green = BSON.load(filename, @__MODULE__)
@@ -146,7 +150,7 @@ function get_greens_function_tables(model_name)
 end #get_greens_function_tables
 
 function get_wall(model_name)
-    if model_name == :d3d_efit01
+    if model_name == :d3d_efit01 ||  model_name ==:d3d_cake02
         filename = dirname(@__DIR__) * "/models/wall.bson"
     end
     wall = BSON.load(filename, @__MODULE__)
@@ -158,6 +162,8 @@ end #get_wall
 function get_model(model_name)
     if model_name == :d3d_efit01
         filename = dirname(@__DIR__) * "/models/model_efit01.bson"
+    elseif model_name == :d3d_cake02
+        filename = dirname(@__DIR__) * "/models/model_cake02.bson"
     end
     NNmodel = BSON.load(filename, @__MODULE__)[:NNmodel]
     NNmodel[:model] = Flux.fmap(Flux.f64, NNmodel[:model]) # map to 64 bits
