@@ -88,17 +88,17 @@ function minmax_unnormalize(x_norm, min_x, max_x)
 end
 
 function predict_model(
-    Rb::Vector{Float64},
-    Zb::Vector{Float64},
-    pp::Vector{Float64},
-    ffp::Vector{Float64},
+    Rb::Vector{T},
+    Zb::Vector{T},
+    pp::Vector{T},
+    ffp::Vector{T},
     ecurrt::Vector{Float64},
     NNmodel::Dict{Symbol,Any},
     green::Dict{Symbol,Any},
     basis_functions::Dict{Symbol,Any},
     basis_functions_1d::Dict{Symbol,Any},
     Ip_target::Float64=0.0
-)
+) where {T<:Real}
     bound_mxh = IMAS.MXH(Rb, Zb, 4)
     pp_fit, ffp_fit = fit_ppffp(pp, ffp, basis_functions_1d)
 
@@ -107,14 +107,14 @@ end
 
 function predict_model(
     bound_mxh::IMAS.MXH,
-    pp_fit::Vector{Float64},
-    ffp_fit::Vector{Float64},
+    pp_fit::Vector{T},
+    ffp_fit::Vector{T},
     ecurrt::Vector{Float64},
     NNmodel::Dict{Symbol,Any},
     green::Dict{Symbol,Any},
     basis_functions::Dict{Symbol,Any},
     Ip_target::Float64=0.0
-)
+) where {T<:Real}
     xunnorm = vcat(
         bound_mxh.R0,
         bound_mxh.Z0,
@@ -146,7 +146,7 @@ function predict_model(
     return predict_model(x, y, green, basis_functions, Ip_target)
 end
 
-function predict_model(x, y, green, basis_functions, Ip_target)
+function predict_model(x::Matrix{T}, y::Matrix{T}, green, basis_functions, Ip_target) where {T<:Real}
     nfsum = green[:nfsum]
     nesum = green[:nesum]
     nw = green[:nw]
@@ -154,16 +154,16 @@ function predict_model(x, y, green, basis_functions, Ip_target)
 
     npca = length(basis_functions[:Ip])
 
-    fcurrt = y[npca+1:npca+nfsum]
-    ecurrt = x[end-5:end]
+    fcurrt = @views y[npca+1:npca+nfsum]
+    ecurrt = @views x[end-5:end]
     psiext_1d = sum(green[:ggridfc] .* reshape(fcurrt, 1, nfsum); dims=2)
-    psiext_1d .+= sum(green[:gridec] .* reshape(ecurrt, 1, nesum); dims=2)[:, :, 1]
+    psiext_1d .+= @views sum(green[:gridec] .* reshape(ecurrt, 1, nesum); dims=2)[:, :, 1]
     psiext = reshape(psiext_1d, nh, nw)
-    psipla = zeros(nw, nh)
+    psipla = zeros(T, (nw, nh))
 
     Ip = 0.0
     for ipca in 1:npca
-        Ip += y[ipca] * basis_functions[:Ip][ipca]
+        @views Ip += y[ipca] * basis_functions[:Ip][ipca]
     end
 
     if Ip_target !== 0.0
@@ -171,19 +171,19 @@ function predict_model(x, y, green, basis_functions, Ip_target)
         Ip = Ip_target
     end
     for ipca in 1:npca
-        psipla .+= y[ipca] .* transpose(basis_functions[:psi][:, :, ipca])
+        @views psipla .+= y[ipca] .* transpose(basis_functions[:psi][:, :, ipca])
     end
 
     psirz = -1.0 * (psiext - psipla)
 
     Ip = 0.0
     for ipca in 1:npca
-        Ip += y[ipca] * basis_functions[:Ip][ipca]
+        @views Ip += y[ipca] * basis_functions[:Ip][ipca]
     end
 
-    Jt = zeros(nw, nh)
+    Jt = zeros(T, (nw, nh))
     for ipca in 1:npca
-        Jt .+= y[ipca] .* transpose(basis_functions[:Jt][:, :, ipca])
+        @views Jt .+= y[ipca] .* transpose(basis_functions[:Jt][:, :, ipca])
     end
 
     return Jt, Matrix(transpose(psirz)), Ip, fcurrt
