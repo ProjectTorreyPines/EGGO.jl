@@ -106,6 +106,23 @@ function predict_model(
 end
 
 function predict_model(
+    pp::Vector{T},
+    ffp::Vector{T},
+    ecurrt::Vector{Float64},
+    fcurrt::Vector{Float64},
+    NNmodel::Dict{Symbol,Any},
+    green::Dict{Symbol,Any},
+    basis_functions::Dict{Symbol,Any},
+    basis_functions_1d::Dict{Symbol,Any},
+    Ip_target::Float64=0.0,
+    model_name::Symbol=:model_efit01
+) where {T<:Real}
+    pp_fit, ffp_fit = fit_ppffp(pp, ffp, basis_functions_1d)
+
+    return predict_model( pp_fit, ffp_fit, ecurrt,fcurrt, NNmodel, green, basis_functions, Ip_target)
+end
+
+function predict_model(
     bound_mxh::IMAS.MXH,
     pp_fit::Vector{T},
     ffp_fit::Vector{T},
@@ -141,21 +158,76 @@ function predict_model(
 
     x = minmax_normalize(xunnorm, x_min, x_max)
     y = model(x)
+
+    x = minmax_unnormalize(x, x_min, x_max) # Convert back to original scale
     y = minmax_unnormalize(y, y_min, y_max)  # Convert back to original scale
 
-    return predict_model(x, y, green, basis_functions, Ip_target)
+    nfsum = green[:nfsum]
+    nesum = green[:nesum]
+    npca = length(basis_functions[:Ip])
+
+    fcurrt = @views y[npca+1:npca+nfsum]
+    ecurrt = @views x[end-nesum+1:end]
+
+    return predict_model(x, y, fcurrt, ecurrt, green, basis_functions, Ip_target)
+
 end
 
-function predict_model(x::Matrix{T}, y::Matrix{T}, green, basis_functions, Ip_target) where {T<:Real}
+function predict_model(
+    pp_fit::Vector{T},
+    ffp_fit::Vector{T},
+    ecurrt::Vector{Float64},
+    fcurrt::Vector{Float64},
+    NNmodel::Dict{Symbol,Any},
+    green::Dict{Symbol,Any},
+    basis_functions::Dict{Symbol,Any},
+    Ip_target::Float64=0.0,
+) where {T<:Real}
+    xunnorm = vcat(
+        pp_fit,
+        ffp_fit,
+        ecurrt,
+        fcurrt
+    )
+
+    model = NNmodel[:model]
+    x_min = NNmodel[:x_min]
+    x_max = NNmodel[:x_max]
+    y_min = NNmodel[:y_min]
+    y_max = NNmodel[:y_max]
+
+    x = minmax_normalize(xunnorm, x_min, x_max)
+
+    y = model(x)
+    x = minmax_unnormalize(x, x_min, x_max)
+    y = minmax_unnormalize(y, y_min, y_max)  # Convert back to original scale
+
+    nfsum = green[:nfsum]
+    nesum = green[:nesum]
+    npca = length(basis_functions[:Ip])
+
+    fcurrt = @views x[end-nfsum+1:end]
+    ecurrt = @views x[end-nfsum-nesum+1:end-nfsum]
+
+    return predict_model(x, y, fcurrt, ecurrt, green, basis_functions, Ip_target)
+end
+
+
+function predict_model(x::Matrix{T},
+    y::Matrix{T},
+    fcurrt::SubArray{Float64, 1, Vector{Float64}, Tuple{UnitRange{Int64}}, true},
+    ecurrt::SubArray{Float64, 1, Vector{Float64}, Tuple{UnitRange{Int64}}, true},
+    green::Dict{Symbol,Any},
+    basis_functions::Dict{Symbol,Any},
+    Ip_target::T,
+) where {T<:Real}
+
     nfsum = green[:nfsum]
     nesum = green[:nesum]
     nw = green[:nw]
     nh = green[:nh]
-
     npca = length(basis_functions[:Ip])
 
-    fcurrt = @views y[npca+1:npca+nfsum]
-    ecurrt = @views x[end-5:end]
     psiext_1d = sum(green[:ggridfc] .* reshape(fcurrt, 1, nfsum); dims=2)
     psiext_1d .+= @views sum(green[:gridec] .* reshape(ecurrt, 1, nesum); dims=2)[:, :, 1]
     psiext = reshape(psiext_1d, nh, nw)
@@ -167,9 +239,10 @@ function predict_model(x::Matrix{T}, y::Matrix{T}, green, basis_functions, Ip_ta
     end
 
     if Ip_target !== 0.0
-        y .*= Ip_target / Ip
+        y .*= Ip/Ip_target 
         Ip = Ip_target
     end
+
     for ipca in 1:npca
         @views psipla .+= y[ipca] .* transpose(basis_functions[:psi][:, :, ipca])
     end
@@ -188,6 +261,7 @@ function predict_model(x::Matrix{T}, y::Matrix{T}, green, basis_functions, Ip_ta
 
     return Jt, Matrix(transpose(psirz)), Ip, fcurrt
 end
+
 
 function get_isinside(Rb, Zb, Ψ, Ψbnd, green)
     is_inside = zeros(green[:nw], green[:nh])
