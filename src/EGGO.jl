@@ -9,7 +9,7 @@ using Statistics
 using RegularizedLeastSquares
 using PolygonOps
 import VacuumFields
-
+using LinearAlgebra
 
 include("io.jl")
 
@@ -267,24 +267,24 @@ function predict_model(y::Matrix{T},
 
     psipla = zeros(T, (nw, nh))
 
-    Ip = 0.0
-    for ipca in 1:npca
-        @views Ip += y[ipca] * basis_functions[:Ip][ipca]
-    end
+    fcurrt = @views y[npca+1:npca+nfsum]
+    ecurrt = @views x[end-5:end]
+    psiext_1d = green[:ggridfc] * fcurrt
+    mul!(psiext_1d, green[:gridec][:, :, 1], ecurrt, 1.0, 1.0)
+    psiext = reshape(psiext_1d, nh, nw)
 
+    Ip = dot(@views(y[1:npca]), basis_functions[:Ip])
     if Ip_target !== 0.0
         y .*= Ip/Ip_target 
         Ip = Ip_target
     end
 
+
+    psipla = zeros(T, (nw, nh))
     for ipca in 1:npca
         @views psipla .+= y[ipca] .* transpose(basis_functions[:psi][:, :, ipca])
     end
-
-    Ip = 0.0
-    for ipca in 1:npca
-        @views Ip += y[ipca] * basis_functions[:Ip][ipca]
-    end
+    psirz = -1.0 * (psiext - psipla)
 
     Jt = zeros(T, (nw, nh))
     for ipca in 1:npca
