@@ -13,12 +13,12 @@ using LinearAlgebra
 
 include("io.jl")
 
-function fit_ppffp(pp, ffp, basis_functions_1d)
+function fit_ppffp(pp::Vector{T}, ffp::Vector{T}, basis_functions_1d::Dict{Symbol,Any})where {T<:Real}
     return fit_ppffp(pp, ffp, basis_functions_1d,length(basis_functions_1d[:pp][:,1]),length(basis_functions_1d[:ffp][:,1]))
 end
 
 
-function fit_ppffp(pp, ffp, basis_functions_1d,pp_index,ffp_index)
+function fit_ppffp(pp::Vector{T}, ffp::Vector{T}, basis_functions_1d::Dict{Symbol,Any},pp_index::Integer,ffp_index::Integer)where {T<:Real}
     S = ADMM(transpose(basis_functions_1d[:pp][1:pp_index,:]); reg=L2Regularization(1.0))
     xp = solve!(S, pp)
     Sf = ADMM(transpose(basis_functions_1d[:ffp][1:ffp_index,:]); reg=L2Regularization(1.0))
@@ -26,7 +26,15 @@ function fit_ppffp(pp, ffp, basis_functions_1d,pp_index,ffp_index)
     return xp, xf
 end
 
-function get_ΨaxisΨbndffppp(psirz, green, basis_functions,basis_functions_1d, bf1d_itp, wall, pp_fit, ffp_fit,Ip_target=0.0)
+function get_ΨaxisΨbndffppp(psirz::Matrix{T}, 
+    green::Dict{Symbol,Any},
+    basis_functions::Dict{Symbol,Any},
+    basis_functions_1d::Dict{Symbol,Any},
+    bf1d_itp::Dict{Symbol,Any},
+    wall::Dict{Symbol, Vector{Float64}}, 
+    pp_fit::Vector{T},
+    ffp_fit::Vector{T},
+    Ip_target=0.0) where {T<:Real}
 
     r = range(green[:rgrid][1], green[:rgrid][end], length(green[:rgrid]))
     z = range(green[:zgrid][1], green[:zgrid][end], length(green[:zgrid]))
@@ -46,13 +54,13 @@ function get_ΨaxisΨbndffppp(psirz, green, basis_functions,basis_functions_1d, 
     psi1d = range(Ψaxis, Ψbnd, green[:nw])
     dpsi = psi1d[2] .- psi1d[1]
 
-    @time lcfs = IMAS.trace_simple_surfaces(psi1d[end-1:end],green[:rgrid],green[:zgrid],psirz,PSI_itp,Raxis,Zaxis,
+    lcfs = IMAS.trace_simple_surfaces(psi1d[end-1:end],green[:rgrid],green[:zgrid],psirz,PSI_itp,Raxis,Zaxis,
     wall[:rlim], wall[:zlim])[end]
     Rb, Zb = lcfs.r,lcfs.z
     if Ip_target>0.0
-        @time is_inside = EGGO.get_isinside(lcfs.r,lcfs.z, green)
+        is_inside = EGGO.get_isinside(lcfs.r,lcfs.z, green)
         psin_rz =  (psirz .- Ψaxis)./(Ψbnd-Ψaxis)
-        @time Jt_pp,Jt_ffp = EGGO.get_Jt_fb(pp_fit, ffp_fit, psin_rz, basis_functions_1d, bf1d_itp, green, is_inside)
+        Jt_pp,Jt_ffp = EGGO.get_Jt_fb(pp_fit, ffp_fit, psin_rz, basis_functions_1d, bf1d_itp, green, is_inside)
 
         dR = green[:rgrid][2]- green[:rgrid][1]
         dZ = green[:zgrid][2]- green[:zgrid][1]
@@ -149,12 +157,11 @@ function predict_model_from_boundary(
     green::Dict{Symbol,Any},
     basis_functions::Dict{Symbol,Any},
     basis_functions_1d::Dict{Symbol,Any},
-    Ip_target::Float64=0.0,
-    model_name::Symbol=:model_efit01
+    Ip_target::Float64=0.0
 ) where {T<:Real}
     
     pp_fit, ffp_fit = fit_ppffp(pp, ffp, basis_functions_1d)
-    return predict_model_from_boundary(Rb, Zb, pp_fit, ffp_fit, NNmodel, green, basis_functions, Ip_target)
+    return predict_model_from_boundary(Rb, Zb, pp_fit, ffp_fit, NNmodel, green, basis_functions, Ip_target,use_vacuumfield_green)
 end
 
 function predict_model_from_boundary(
@@ -165,9 +172,9 @@ function predict_model_from_boundary(
     NNmodel::Dict{Symbol,Any},
     green::Dict{Symbol,Any},
     basis_functions::Dict{Symbol,Any},
-    coils::Vector{VacuumFields.GS_IMAS_pf_active__coil{Float64, Float64}},
+    coils::Vector{<:VacuumFields.AbstractCoil},
     Ip_target::Float64=0.0,
-    model_name::Symbol=:model_efit01
+    use_vacuumfield_green::Bool=true
 ) where {T<:Real}
     bound_mxh =  IMAS.MXH(Rb, Zb, 4)
     xunnorm = vcat(
@@ -183,7 +190,7 @@ function predict_model_from_boundary(
         bound_mxh.c,
         bound_mxh.s,
         pp_fit,
-        ffp_fit    )
+        ffp_fit)
 
     model = NNmodel[:model]
 
@@ -199,31 +206,38 @@ function predict_model_from_boundary(
     y = minmax_unnormalize(y, y_min, y_max)  # Convert back to original scale
 
     Jt, psirz, Ip = predict_model(y, green, basis_functions, Ip_target)
-    psirz .+= calculate_psiext(Rb,Zb,psirz,green,coils)#calculate_psiext(fcurrt,ecurrt,green)
+    psirz .+= calculate_psiext(Rb,Zb,psirz,green,coils,use_vacuumfield_green)
 
     return Jt,psirz,Ip
 end
 
-function calculate_psiext(Rb_target,Zb_target,psipla,green,coils)
+function calculate_psiext(Rb_target::Vector{T},
+    Zb_target::Vector{T},
+    psipla::Matrix{T},
+    green::Dict{Symbol,Any},
+    coils::Vector{<:VacuumFields.AbstractCoil},use_vacuumfield_green::Bool) where {T<:Real}
 
     r = range(green[:rgrid][1], green[:rgrid][end], length(green[:rgrid]))
     z = range(green[:zgrid][1], green[:zgrid][end], length(green[:zgrid]))
     Ψpl_itp = Interpolations.cubic_spline_interpolation((r, z), psipla; extrapolation_bc=Interpolations.Line())   
-
-    iso_cps = VacuumFields.IsoControlPoints(Rb_target, Zb_target)
-    
-    fixed = Int[] # Integer vector denoting of fixed coils
-    dΨpl_dR = (x, y) -> Interpolations.gradient(Ψpl_itp, x, y)[1]
-    dΨpl_dZ = (x, y) -> Interpolations.gradient(Ψpl_itp, x, y)[2]
-    fixed_coils = coils[fixed]
-    active_coils = isempty(fixed_coils) ? coils : coils[setdiff(eachindex(coils), fixed)]
-    flux_cps = VacuumFields.FluxControlPoint{Real}[]
-    saddle_cps  = VacuumFields.SaddleControlPoint{Real}[]
-    
-    fcurrt_vf = VacuumFields.find_coil_currents!(active_coils, Ψpl_itp, dΨpl_dR, dΨpl_dZ; iso_cps, flux_cps, saddle_cps, fixed_coils, λ_regularize=-1.0)[1]
     psiext = zeros(length(r),length(z))
-    VacuumFields.flux_on_grid!(psiext,green[:ggridfc],r,z,coils)
+    if use_vacuumfield_green
+        iso_cps = VacuumFields.IsoControlPoints(Rb_target, Zb_target)
+        fixed = Int[] # Integer vector denoting of fixed coils
+        dΨpl_dR = (x, y) -> Interpolations.gradient(Ψpl_itp, x, y)[1]
+        dΨpl_dZ = (x, y) -> Interpolations.gradient(Ψpl_itp, x, y)[2]
+        fixed_coils = coils[fixed]
+        active_coils = isempty(fixed_coils) ? coils : coils[setdiff(eachindex(coils), fixed)]
+        flux_cps = VacuumFields.FluxControlPoint{Real}[]
+        saddle_cps  = VacuumFields.SaddleControlPoint{Real}[]
 
+        fcurrt_vf = VacuumFields.find_coil_currents!(active_coils, Ψpl_itp, dΨpl_dR, dΨpl_dZ; iso_cps, flux_cps, saddle_cps, fixed_coils, λ_regularize=-1.0)[1]
+        
+        VacuumFields.flux_on_grid!(psiext,green[:ggridfc_vf],r,z,coils)
+    else
+        ecurrt_vf,fcurrt_vf = predict_coil_currents(Rb_target,Zb_target,green,Ψpl_itp)
+        psiext = calculate_psiext(fcurrt_vf,ecurrt_vf,green)
+    end
     return psiext
 end
 
@@ -267,11 +281,15 @@ function predict_model_from_coils(
     return  Jt, psirz, Ip
 end
 
-function calculate_psiext(fcurrt::Vector{T},ecurrt::Vector{T},green)where {T<:Real}
-    psiext_1d = sum(green[:ggridfc] .* reshape(fcurrt, 1, green[:nfsum]); dims=2)
-    psiext_1d .+= @views sum(green[:gridec] .* reshape(ecurrt, 1, green[:nesum]); dims=2)[:, :, 1]
-    return -transpose(reshape(psiext_1d, green[:nh], green[:nw]))
+
+function calculate_psiext(fcurrt::Vector{T}, ecurrt::Vector{T}, green) where {T<:Real}
+    # Direct matrix-vector multiplications (16641,18) * (18,) + (16641,6) * (6,) = (16641,)
+    psiext_flat = green[:ggridfc] * fcurrt + green[:gridec] * ecurrt
+    
+    # Reshape to target dimensions and negate
+    return -transpose(reshape(psiext_flat, green[:nh], green[:nw]))
 end
+
 
 function predict_model(y::Matrix{T},
     green::Dict{Symbol,Any},
@@ -279,15 +297,13 @@ function predict_model(y::Matrix{T},
     Ip_target::T,
 ) where {T<:Real}
 
-    nfsum = green[:nfsum]
-    nesum = green[:nesum]
     nw = green[:nw]
     nh = green[:nh]
     npca = length(basis_functions[:Ip])
 
     Ip = dot(@views(y[1:npca]), basis_functions[:Ip])
     if Ip_target !== 0.0
-        y .*= Ip_target/Ip
+        y .*= Ip_target / Ip
         Ip = Ip_target
     end
 
@@ -316,8 +332,14 @@ function get_isinside(Rb, Zb, green)
     end
     return is_inside
 end
-
-function get_Jt_fb(pp_fit, ffp_fit, psin_rz, basis_functions_1d, bf1d_itp, green, is_inside)
+"""
+function get_Jt_fb(pp_fit::Vector{T}, 
+    ffp_fit::Vector{T}, 
+    psin_rz::Matrix{T}, 
+    basis_functions_1d::Dict{Symbol,Any}, 
+    bf1d_itp::Dict{Symbol,Any}, 
+    green::Dict{Symbol,Any}, 
+    is_inside::Matrix{T})where {T<:Real}
     bf2d_ppffp = Dict{Symbol,Any}()
     bf2d_ppffp = Dict{Symbol,Any}()
 
@@ -340,42 +362,138 @@ function get_Jt_fb(pp_fit, ffp_fit, psin_rz, basis_functions_1d, bf1d_itp, green
     end
     return Jt_pp,Jt_ffp
 end
+"""
 
-function predict_coil_currents(Rb,Zb,green::Dict{Symbol,Any},psipla)
+function get_Jt_fb(pp_fit::Vector{T},
+    ffp_fit::Vector{T},
+    psin_rz::Matrix{T},
+    basis_functions_1d::Dict{Symbol,Any},
+    bf1d_itp::Dict{Symbol,Any},
+    green::Dict{Symbol,Any},
+    is_inside::Matrix{T}) where {T<:Real}
 
+# Pre-extract values to avoid repeated dictionary lookups
+rgrid = green[:rgrid]
+zgrid = green[:zgrid]
+nh = green[:nh]
+nw = green[:nw]
+
+npp = length(pp_fit)
+nffp = length(ffp_fit)
+
+# Pre-allocate output arrays
+Jt_pp = zeros(T, nh, nw)
+Jt_ffp = zeros(T, nh, nw)
+
+Threads.@threads for j in 1:nw
+    z = zgrid[j]
+    @inbounds for i in 1:nh
+        r = rgrid[i]
+        if is_inside[i, j] != 0  # Skip if outside
+            psin_val = psin_rz[j, i]
+
+            # Vectorized computation for pp
+            for ib in 1:npp
+                Jt_pp[i, j] -= pp_fit[ib] * bf1d_itp[:pp][ib](psin_val) * r * is_inside[i, j]
+            end
+
+            # Vectorized computation for ffp
+            r_inv = inv(r)
+            for ib in 1:nffp
+                Jt_ffp[i, j] -= ffp_fit[ib] * bf1d_itp[:ffp][ib](psin_val) * r_inv * is_inside[i, j] / IMAS.mks.μ_0
+            end
+        end
+    end
+end
+
+return Jt_pp, Jt_ffp
+end
+
+"""
+function predict_coil_currents(Rb::Vector{T},Zb::Vector{T},green::Dict{Symbol,Any},psipla::Interpolations.AbstractInterpolation) where {T<:Real}
     nesum = green[:nesum]
     nfsum = green[:nfsum]
+    n = length(Rb)
+    npoints = n * (n - 1) ÷ 2
 
-    A = zeros(nfsum+nesum, length(Rb)^2)
-    R1  = Rb[1]
-    Z1 = Zb[1]
-    for i in 1:nesum
-        for (j1,(R1,Z1)) in enumerate(zip(Rb,Zb))
-            for (j2, (R2,Z2)) in enumerate(zip(Rb[2:end],Zb[2:end]))
-                A[i, (j1-1)*length(Rb)+j2] = green[:gridec_itp][i](R1,Z1) -(green[:gridec_itp][i](R2,Z2))
+    A = zeros(nfsum+nesum, npoints)
+    j = 1
+    @time for (j1,(R1,Z1)) in enumerate(zip(Rb,Zb))
+        for (R2,Z2) in zip(Rb[j1+1:end],Zb[j1+1:end])
+            for i in 1:nesum
+                A[i, j] = green[:gridec_itp][i](R1,Z1) -(green[:gridec_itp][i](R2,Z2))
             end
+            j+=1
+        end
+    end
+    j = 1
+    @time for (j1,(R1,Z1)) in enumerate(zip(Rb,Zb))
+        for (R2,Z2) in zip(Rb[j1+1:end],Zb[j1+1:end])
+            for i in 1:nfsum
+                A[nesum+i, j] = green[:ggridfc_itp][i](R1,Z1) - (green[:ggridfc_itp][i](R2,Z2))
+            end
+            j+=1
         end
     end
 
-    for i in 1:nfsum
-        for (j1,(R1,Z1)) in enumerate(zip(Rb,Zb))
-            for (j2, (R2,Z2)) in enumerate(zip(Rb[1:end],Zb[1:end]))
-                A[nesum+i, (j1-1)*length(Rb)+j2] = green[:ggridfc_itp][i](R1,Z1) - (green[:ggridfc_itp][i](R2,Z2))
-            end
-        end
-    end
-    b= zeros(length(Rb)^2)
-    for (j1,(R1,Z1)) in enumerate(zip(Rb,Zb))
-        for (j2, (R2,Z2)) in enumerate(zip(Rb[1:end],Zb[1:end]))
-            b[(j1-1)*length(Rb)+j2] = (psipla(R1,Z1)- psipla(R2,Z2))
+    b= zeros(npoints)
+    j = 1
+    @time for (j1,(R1,Z1)) in enumerate(zip(Rb,Zb))
+        for (R2,Z2) in zip(Rb[j1+1:end],Zb[j1+1:end])
+            b[j] = (psipla(R1,Z1)- psipla(R2,Z2))
+            j+=1
         end 
     end
 
-   x = transpose(A)\b
-    #x = reg_solve(A,b,λ)
-    ecurrt = x[1:nesum]
-    fcurrt = x[nesum+1:end]
-    return ecurrt,fcurrt
+    @time x = reg_solve(A', b, 1e-16)
+
+    return x[1:nesum],x[nesum+1:end]
+end
+"""
+
+function predict_coil_currents(Rb::Vector{T}, Zb::Vector{T}, green::Dict{Symbol,Any}, psipla::Interpolations.AbstractInterpolation) where {T<:Real}
+    nesum = green[:nesum]
+    nfsum = green[:nfsum]
+    n = length(Rb)
+    npoints = n * (n - 1) ÷ 2
+
+    # Pre-allocate all arrays
+    A = zeros(T, nfsum + nesum, npoints)
+    b = zeros(T, npoints)
+    
+    # Pre-extract interpolation functions to avoid dictionary lookups
+    gridec_itp = green[:gridec_itp]
+    ggridfc_itp = green[:ggridfc_itp]
+    
+    j = 1
+    @inbounds for j1 in 1:n-1
+        R1, Z1 = Rb[j1], Zb[j1]
+        gridec_vals_1 = [gridec_itp[i](R1, Z1) for i in 1:nesum]
+        ggridfc_vals_1 = [ggridfc_itp[i](R1, Z1) for i in 1:nfsum]
+        psipla_1 = psipla(R1, Z1)
+        
+        for j2 in j1+1:n
+            R2, Z2 = Rb[j2], Zb[j2]
+            psipla_2 = psipla(R2, Z2)
+            
+            for i in 1:nesum
+                A[i, j] = gridec_vals_1[i] - gridec_itp[i](R2, Z2)
+            end
+            
+            for i in 1:nfsum
+                A[nesum + i, j] = ggridfc_vals_1[i] - ggridfc_itp[i](R2, Z2)
+            end
+            
+            b[j] = psipla_1 - psipla_2
+            
+            j += 1
+        end
+    end
+    
+    # Solve the system
+    x = reg_solve(A', b, 1e-16)
+    
+    return x[1:nesum], x[nesum+1:end]
 end
 
 function reg_solve(A, b, λ)
