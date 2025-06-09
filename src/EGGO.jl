@@ -31,7 +31,7 @@ function get_ΨaxisΨbndffppp(psirz::Matrix{T},
     basis_functions::Dict{Symbol,Any},
     basis_functions_1d::Dict{Symbol,Any},
     bf1d_itp::Dict{Symbol,Any},
-    wall::Dict{Symbol, Vector{Float64}}, 
+    wall::Dict{Symbol, Any}, 
     pp_fit::Vector{T},
     ffp_fit::Vector{T},
     Ip_target=0.0) where {T<:Real}
@@ -107,8 +107,8 @@ function fill_eqt(eqt::IMAS.equilibrium__time_slice, psirz, green, wall, pp, ffp
 
     eq2d = resize!(eqt.profiles_2d, 1)[1]
     eq2d.grid_type.index = 1
-    eq2d.grid.dim1 = green[:rgrid]#collect(r)
-    eq2d.grid.dim2 = green[:zgrid]#collect(z)
+    eq2d.grid.dim1 = green[:rgrid]
+    eq2d.grid.dim2 = green[:zgrid]
     eq2d.psi = psirz * 2π
 
     return eqt
@@ -130,24 +130,6 @@ function minmax_unnormalize(x_norm, min_x, max_x)
     return x_norm .* (max_x .- min_x) .+ min_x
 end
 
-function predict_mode_from_coils(
-    pp::Vector{T},
-    ffp::Vector{T},
-    ecurrt::Vector{Float64},
-    fcurrt::Vector{Float64},
-    NNmodel::Dict{Symbol,Any},
-    green::Dict{Symbol,Any},
-    basis_functions::Dict{Symbol,Any},
-    basis_functions_1d::Dict{Symbol,Any},
-    Ip_target::Float64=0.0,
-    model_name::Symbol=:model_efit01
-) where {T<:Real}
-    
-    pp_fit, ffp_fit = fit_ppffp(pp, ffp, basis_functions_1d)
-
-    return predict_mode_from_coils(pp_fit, ffp_fit, ecurrt,fcurrt, NNmodel, green, basis_functions, Ip_target)
-end
-
 function predict_model_from_boundary(
     Rb::Vector{T},
     Zb::Vector{T},
@@ -157,11 +139,13 @@ function predict_model_from_boundary(
     green::Dict{Symbol,Any},
     basis_functions::Dict{Symbol,Any},
     basis_functions_1d::Dict{Symbol,Any},
-    Ip_target::Float64=0.0
+    coils::Union{Vector{<:VacuumFields.AbstractCoil},Nothing},
+    Ip_target::Float64=0.0,
+    use_vacuumfield_green::Bool=false
 ) where {T<:Real}
     
     pp_fit, ffp_fit = fit_ppffp(pp, ffp, basis_functions_1d)
-    return predict_model_from_boundary(Rb, Zb, pp_fit, ffp_fit, NNmodel, green, basis_functions, Ip_target,use_vacuumfield_green)
+    return predict_model_from_boundary(Rb, Zb, pp_fit, ffp_fit, NNmodel, green, basis_functions, coils, Ip_target,use_vacuumfield_green)
 end
 
 function predict_model_from_boundary(
@@ -172,9 +156,9 @@ function predict_model_from_boundary(
     NNmodel::Dict{Symbol,Any},
     green::Dict{Symbol,Any},
     basis_functions::Dict{Symbol,Any},
-    coils::Vector{<:VacuumFields.AbstractCoil},
+    coils::Union{Vector{<:VacuumFields.AbstractCoil},Nothing},
     Ip_target::Float64=0.0,
-    use_vacuumfield_green::Bool=true
+    use_vacuumfield_green::Bool=false
 ) where {T<:Real}
     bound_mxh =  IMAS.MXH(Rb, Zb, 4)
     xunnorm = vcat(
@@ -215,7 +199,8 @@ function calculate_psiext(Rb_target::Vector{T},
     Zb_target::Vector{T},
     psipla::Matrix{T},
     green::Dict{Symbol,Any},
-    coils::Vector{<:VacuumFields.AbstractCoil},use_vacuumfield_green::Bool) where {T<:Real}
+    coils::Union{Vector{<:VacuumFields.AbstractCoil},Nothing},
+    use_vacuumfield_green::Bool=true) where {T<:Real}
 
     r = range(green[:rgrid][1], green[:rgrid][end], length(green[:rgrid]))
     z = range(green[:zgrid][1], green[:zgrid][end], length(green[:zgrid]))
@@ -242,6 +227,24 @@ function calculate_psiext(Rb_target::Vector{T},
 end
 
 function predict_model_from_coils(
+    pp::Vector{T},
+    ffp::Vector{T},
+    ecurrt::Vector{Float64},
+    fcurrt::Vector{Float64},
+    NNmodel::Dict{Symbol,Any},
+    green::Dict{Symbol,Any},
+    basis_functions::Dict{Symbol,Any},
+    basis_functions_1d::Dict{Symbol,Any},
+    Ip_target::Float64=0.0,
+    use_vacuumfield_green::Bool=false
+) where {T<:Real}
+    
+    pp_fit, ffp_fit = fit_ppffp(pp, ffp, basis_functions_1d)
+
+    return predict_model_from_coils(pp_fit, ffp_fit, ecurrt,fcurrt, NNmodel, green, basis_functions, Ip_target,use_vacuumfield_green)
+end
+
+function predict_model_from_coils(
     pp_fit::Vector{T},
     ffp_fit::Vector{T},
     ecurrt::Vector{Float64},
@@ -250,6 +253,7 @@ function predict_model_from_coils(
     green::Dict{Symbol,Any},
     basis_functions::Dict{Symbol,Any},
     Ip_target::Float64=0.0,
+    use_vacuumfield_green::Bool=false
 ) where {T<:Real}
     xunnorm = vcat(
         pp_fit,
@@ -271,18 +275,16 @@ function predict_model_from_coils(
 
     nfsum = green[:nfsum]
     nesum = green[:nesum]
-    npca = length(basis_functions[:Ip])
 
     fcurrt = @views x[end-nfsum+1:end]
     ecurrt = @views x[end-nfsum-nesum+1:end-nfsum]
     Jt, psirz, Ip = predict_model(y, green, basis_functions, Ip_target)
     psirz .+= calculate_psiext(fcurrt,ecurrt,green)
-
     return  Jt, psirz, Ip
 end
 
 
-function calculate_psiext(fcurrt::Vector{T}, ecurrt::Vector{T}, green) where {T<:Real}
+function calculate_psiext(fcurrt::AbstractVector{T}, ecurrt::AbstractVector{T}, green::Dict{Symbol,Any}) where {T<:Real}
     # Direct matrix-vector multiplications (16641,18) * (18,) + (16641,6) * (6,) = (16641,)
     psiext_flat = green[:ggridfc] * fcurrt + green[:gridec] * ecurrt
     
