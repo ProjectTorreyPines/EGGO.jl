@@ -3,16 +3,20 @@ import BSON
 import HDF5
 
 function get_basis_functions(model_name)
-    if model_name == :d3d_efit01
+    if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils
         filename = dirname(@__DIR__) * "/models/basis_functions.h5"
+    elseif model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
+        filename = dirname(@__DIR__) * "/models/basis_functions_efit01efit02cake02.h5"
     end
     basis_functions = read_hdf5_auto(filename)
     return basis_functions
 end
 
 function get_basis_functions_1d(model_name)
-    if model_name == :d3d_efit01
+    if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils
         filename = dirname(@__DIR__) * "/models/basis_functions_1d.h5"
+    elseif model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
+        filename = dirname(@__DIR__) * "/models/basis_functions_1d_efit01efit02cake02.h5"
     end
     basis_functions_1d = read_hdf5_auto(filename)
 
@@ -31,15 +35,29 @@ function get_basis_functions_1d(model_name)
 end
 
 function get_greens_function_tables(model_name)
-    if model_name == :d3d_efit01
+    if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
         filename = dirname(@__DIR__) * "/models/green.h5"
     end
     green = read_hdf5_auto(filename)
+
+    r = range(green[:rgrid][1],green[:rgrid][end],length(green[:rgrid]))
+    z = range(green[:zgrid][1],green[:zgrid][end],length(green[:zgrid]))
+    green[:ggridfc_itp]=Vector()
+    green[:gridec_itp] =Vector()
+    
+    for i in 1:size(green[:ggridfc])[2]
+        push!(green[:ggridfc_itp], Interpolations.cubic_spline_interpolation((r, z), transpose(reshape(green[:ggridfc][:,i],green[:nw],green[:nh])); extrapolation_bc=Interpolations.Line()))
+    end
+    
+    for i in 1:size(green[:gridec])[2]
+        push!(green[:gridec_itp], Interpolations.cubic_spline_interpolation((r, z), transpose(reshape(green[:gridec][:,i],green[:nw],green[:nh])); extrapolation_bc=Interpolations.Line()))
+    end
+    
     return green
 end
 
 function get_wall(model_name)
-    if model_name == :d3d_efit01
+    if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
         filename = dirname(@__DIR__) * "/models/wall.h5"
     end
     wall = read_hdf5_auto(filename)
@@ -61,6 +79,12 @@ end
 function get_model(model_name)
     if model_name == :d3d_efit01
         filename = dirname(@__DIR__) * "/models/model_efit01.bson"
+    elseif model_name == :d3d_efit01efit02cake02
+        filename = dirname(@__DIR__) * "/models/model_efit01efit02cake02.bson"
+    elseif model_name == :d3d_efit01efit02cake02_coils
+        filename = dirname(@__DIR__) * "/models/model_efit01efit02cake02_coils.bson"
+    elseif model_name == :d3d_efit01_coils
+        filename = dirname(@__DIR__) * "/models/model_efit01_coils.bson"
     end
     NNmodel = Dict{Symbol,Any}()
     for (field, value) in BSON.load(filename, @__MODULE__)[:NNmodel]
