@@ -10,6 +10,8 @@ using RegularizedLeastSquares
 using PolygonOps
 import VacuumFields
 using LinearAlgebra
+using StatsBase
+
 
 include("io.jl")
 include("free_eggo.jl")

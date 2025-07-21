@@ -1,10 +1,10 @@
 using StatsBase
 
-function predict_free()
-    y_psi = predict_psipla_free()
-    y_ne, y_Te, y_nc = predict_kinetic()
-    return y_psi, y_ne, y_Te, y_nc
-end
+#function predict_free()
+#    y_psi = predict_psipla_free()
+#    y_ne, y_Te, y_nc = predict_kinetic()
+#    return y_psi, y_ne, y_Te, y_nc
+#end
 
 function predict_psipla_free(expsi,expmp2,brsp,ecurrt,ip,NNmodel,green,basis_functions)
 
@@ -79,14 +79,15 @@ function predict_psipla_free(expsi,expmp2,brsp,ecurrt,ip,NNmodel,green,basis_fun
 end
 
 
-function predict_kinetic(r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,green,wall,basis_functions)
+function predict_kinetic(r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,green,wall,basis_functions,bf1d_itp)
     psipla = zeros(129, 129)
     Ip1 = 0.0
+    
     for ipca in 1:32
         psipla .+= y[ipca] .* basis_functions[:psi][:, :, ipca]
         Ip1+= basis_functions[:Ip][ ipca]*y[ipca]
     end
-    println(Ip1)
+
     psiext = EGGO.calculate_psiext(fcurrt, ecurrt, green)
     psi = psipla.+psiext
     
@@ -96,15 +97,8 @@ function predict_kinetic(r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,green,wall
     zwall = Float64.(wall[:zlim])
     PSI_itp = Interpolations.scale(Interpolations.interpolate(psi, Interpolations.BSpline(Interpolations.Cubic(Interpolations.Line(Interpolations.OnGrid())))), r, z)
     
-    @time Raxis, Zaxis = IMAS.find_magnetic_axis(r, z, PSI_itp, 1; rguess=r[65], zguess=z[65])
+    Raxis, Zaxis = IMAS.find_magnetic_axis(r, z, PSI_itp, 1; rguess=r[65], zguess=z[65])
     psiaxis = PSI_itp(Raxis,Zaxis)
-    
-    axis2bnd=:increasing
-    empty_r = zeros(1)[1:0]
-    empty_z = zeros(1)[1:0]
-    @time Ψbnd = IMAS.find_psi_boundary(r, z, psi, psiaxis, axis2bnd, Raxis, Zaxis, rwall, zwall, empty_r,  empty_z;
-                                      PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
-
 
     psi_tom = [] 
     for (r,z) in zip(r_tom,z_tom)
@@ -114,13 +108,18 @@ function predict_kinetic(r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,green,wall
     # Here we use Gaussian-like weighting to align separatrix
     T_sep = 80.0
     tolerance = 40.0
-    indices = findall(abs.(Te_tom .- T_sep) .< tolerance)
+    if length(indices>0)
+        indices = findall(abs.(Te_tom .- T_sep) .< tolerance)
 
-    weights = [exp(-((Te - T_sep)^2) / (2*(tolerance/2)^2)) for Te in Te_tom[indices]]
-    
-    # Step 4: Weighted mean
-    psi_sep = mean(psi_tom[indices], Weights(weights))    
-    
+        weights = [exp(-((Te - T_sep)^2) / (2*(tolerance/2)^2)) for Te in Te_tom[indices]]
+        psi_sep = mean(psi_tom[indices], Weights(weights))    
+    else
+        axis2bnd=:increasing
+        empty_r = zeros(1)[1:0]
+        empty_z = zeros(1)[1:0]
+        psi_sep = IMAS.find_psi_boundary(r, z, psi, psiaxis, axis2bnd, Raxis, Zaxis, rwall, zwall, empty_r,  empty_z;
+                                          PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
+    end
     Ane = zeros(length(psi_tom),17)
     ATe = zeros(length(psi_tom),17)
     

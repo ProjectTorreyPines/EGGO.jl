@@ -14,6 +14,7 @@ PolygonOps = "647866c9-e3ac-4575-94e7-e3d426903924"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 RegularizedLeastSquares = "1e9c538a-f78c-5de5-8ffb-0b6dbe892d23"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 VacuumFields = "9d9223b5-c5da-4bf4-abee-2a8bb6775a49"
 
 [compat]
@@ -27,6 +28,7 @@ PolygonOps = "0.1.2"
 Random = "1.11.0"
 RegularizedLeastSquares = "0.16.7"
 Statistics = "1.11.1"
+StatsBase = "0.34.5"
 VacuumFields = "4.1.0"
 julia = "1"
 
