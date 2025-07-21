@@ -12,6 +12,7 @@ import VacuumFields
 using LinearAlgebra
 
 include("io.jl")
+include("free_eggo.jl")
 
 function fit_ppffp(pp::Vector{T}, ffp::Vector{T}, basis_functions_1d::Dict{Symbol,<:Any}) where {T<:Real}
     return fit_ppffp(pp, ffp, basis_functions_1d, length(basis_functions_1d[:pp][:, 1]), length(basis_functions_1d[:ffp][:, 1]))

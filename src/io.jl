@@ -6,6 +6,10 @@ function get_basis_functions(model_name)
     if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils
         filename = dirname(@__DIR__) * "/models/basis_functions.h5"
     elseif model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
+        print("here")
+
+        filename = dirname(@__DIR__) * "/models/basis_functions_efit01efit02cake02.h5"
+    elseif model_name == :d3d_cakenn_free
         filename = dirname(@__DIR__) * "/models/basis_functions_efit01efit02cake02.h5"
     end
     basis_functions = read_hdf5_auto(filename)
@@ -17,7 +21,10 @@ function get_basis_functions_1d(model_name)
         filename = dirname(@__DIR__) * "/models/basis_functions_1d.h5"
     elseif model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
         filename = dirname(@__DIR__) * "/models/basis_functions_1d_efit01efit02cake02.h5"
+    elseif model_name == :d3d_cakenn_free
+        filename = dirname(@__DIR__) * "/models/basis_functions_1d_cakenn.h5"
     end
+
     basis_functions_1d = read_hdf5_auto(filename)
 
     # Create interpolation of these functions on import
@@ -30,12 +37,27 @@ function get_basis_functions_1d(model_name)
         IMAS.interp1d(basis_functions_1d[:psi], basis_functions_1d[:ffp][i, :])
         for i in 1:size(basis_functions_1d[:ffp])[1]
     ]
-
+    
+    if model_name == :d3d_cakenn_free
+        bf1d_itp[:ne] = [
+            IMAS.interp1d(basis_functions_1d[:psi], basis_functions_1d[:ne][i, :])
+            for i in 1:size(basis_functions_1d[:ne])[1]
+        ]
+        bf1d_itp[:Te] = [
+            IMAS.interp1d(basis_functions_1d[:psi], basis_functions_1d[:Te][i, :])
+            for i in 1:size(basis_functions_1d[:Te])[1]
+        ]
+        bf1d_itp[:nc] = [
+            IMAS.interp1d(basis_functions_1d[:psi], basis_functions_1d[:Te][i, :])
+            for i in 1:size(basis_functions_1d[:Te])[1]
+        ]
+    end
     return basis_functions_1d, bf1d_itp
 end
 
 function get_greens_function_tables(model_name)
-    if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
+    if (model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
+        model_name == :d3d_cakenn_free)
         filename = dirname(@__DIR__) * "/models/green.h5"
     end
     green = read_hdf5_auto(filename)
