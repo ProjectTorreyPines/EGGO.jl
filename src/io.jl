@@ -2,6 +2,8 @@ import Interpolations
 import BSON
 import HDF5
 
+
+
 function get_basis_functions(model_name)
     if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils
         filename = dirname(@__DIR__) * "/models/basis_functions.h5"
@@ -54,6 +56,7 @@ function get_basis_functions_1d(model_name)
     return basis_functions_1d, bf1d_itp
 end
 
+"""
 function get_greens_function_tables(model_name)
     if (model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
         model_name == :d3d_cakenn_free)
@@ -76,6 +79,61 @@ function get_greens_function_tables(model_name)
     
     return green
 end
+"""
+function get_greens_function_tables(model_name)
+    if (model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
+        model_name == :d3d_cakenn_free)
+        filename = dirname(@__DIR__) * "/models/green.h5"
+    end
+
+    raw = read_hdf5_auto(filename)
+
+    r = range(raw[:rgrid][1], raw[:rgrid][end], length=length(raw[:rgrid]))
+    z = range(raw[:zgrid][1], raw[:zgrid][end], length=length(raw[:zgrid]))
+
+    ggridfc_itp = Vector{Any}()
+    gridec_itp = Vector{Any}()
+
+    for i in 1:size(raw[:ggridfc], 2)
+        push!(ggridfc_itp, Interpolations.cubic_spline_interpolation((r, z),
+            transpose(reshape(raw[:ggridfc][:, i], raw[:nw], raw[:nh]));
+            extrapolation_bc=Interpolations.Line()))
+    end
+
+    for i in 1:size(raw[:gridec], 2)
+        push!(gridec_itp, Interpolations.cubic_spline_interpolation((r, z),
+            transpose(reshape(raw[:gridec][:, i], raw[:nw], raw[:nh]));
+            extrapolation_bc=Interpolations.Line()))
+    end
+ 
+    return GreenFunctionTables(
+        raw[:nw],
+        raw[:nh],
+        raw[:nfsum],
+        raw[:nvsum],
+        raw[:ngam],
+        raw[:nesum],
+        raw[:ivesel],
+        raw[:imse],
+        raw[:iecoil],
+        raw[:nsilop],
+        raw[:magpr2],
+        raw[:rgrid],
+        raw[:zgrid],
+        raw[:rsilec],
+        raw[:gsilvs],
+        raw[:rsilfc],
+        raw[:gsilvs],
+        raw[:rmp2fc],
+        raw[:rmp2ec],
+        raw[:ggridfc],
+        raw[:gridec],
+        ggridfc_itp,
+        gridec_itp
+    )
+end
+
+
 
 function get_wall(model_name)
     if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils || model_name == :d3d_cakenn_free

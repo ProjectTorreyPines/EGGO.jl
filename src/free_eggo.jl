@@ -1,11 +1,5 @@
 using StatsBase
 
-#function predict_free()
-#    y_psi = predict_psipla_free()
-#    y_ne, y_Te, y_nc = predict_kinetic()
-#    return y_psi, y_ne, y_Te, y_nc
-#end
-
 function predict_psipla_free(shot::Int,
     expsi::Vector{T},
     fwtsi::Vector{T},
@@ -15,18 +9,17 @@ function predict_psipla_free(shot::Int,
     ecurrt::Vector{T},
     ip::T,
     NNmodel::Dict{Symbol,<:Any},
-    green::Dict{Symbol,<:Any},
+    green::GreenFunctionTables{Float64},
     basis_functions::Dict{Symbol,<:Any}) where {T<:Real}
-
-    nfsum = green[:nfsum]
-    nesum = green[:nesum]
-    nsilop = green[:nsilop]
-    magpr2 = green[:magpr2]
+    nfsum = green.nfsum
+    nesum = green.nesum
+    nsilop = green.nsilop
+    magpr2 = green.magpr2
 
     siref = copy(expsi[1])    # Clone the first column to `siref`
 
-    cm1_flux = sum(green[:rsilfc] .* reshape(fcurrt, 1, nfsum); dims=2)[:, 1]
-    cm2_flux = sum(green[:rsilec] .* reshape(ecurrt, 1, nesum); dims=2)[:, 1]
+    cm1_flux = sum(green.rsilfc .* reshape(fcurrt, 1, nfsum); dims=2)[:, 1]
+    cm2_flux = sum(green.rsilec .* reshape(ecurrt, 1, nesum); dims=2)[:, 1]
     cm3_flux = 0.0
     psiloop_ext = cm1_flux .+ cm2_flux .+ cm3_flux .- siref
     psiloop_in = expsi .- psiloop_ext
@@ -47,8 +40,8 @@ function predict_psipla_free(shot::Int,
 
     mask_mpi = fwtmp2 .* mask_mpi
 
-    cm1_probe = sum(green[:rmp2fc] .* reshape(fcurrt, 1, nfsum); dims=2)[:, 1]
-    cm2_probe = sum(green[:rmp2ec] .* reshape(ecurrt, 1, nesum); dims=2)[:, 1]
+    cm1_probe = sum(green.rmp2fc .* reshape(fcurrt, 1, nfsum); dims=2)[:, 1]
+    cm2_probe = sum(green.rmp2ec .* reshape(ecurrt, 1, nesum); dims=2)[:, 1]
     cm3_probe = 0.0
 
     bp_in = expmp2 .- cm1_probe .- cm2_probe .- cm3_probe
@@ -93,11 +86,24 @@ function predict_psipla_free(shot::Int,
     IpNN = sum(basis_functions[:Ip].*y)
     y .*=  ip /IpNN 
 
-    return y, XNN#-1*y_lsq
+    return y[:,1], XNN#-1*y_lsq
 end
 
 
-function predict_kinetic(y, r_tom, z_tom, ne_tom, Te_tom, r_cer, z_cer, nc_cer, fcurrt, ecurrt, green, wall, basis_functions, bf1d_itp)
+function predict_kinetic(y::Vector{T},
+     r_tom::Vector{T},
+     z_tom::Vector{T}, 
+     ne_tom::Vector{T}, 
+     Te_tom::Vector{T}, 
+     r_cer::Vector{T}, 
+     z_cer::Vector{T}, 
+     nc_cer::Vector{T}, 
+     fcurrt::Vector{T}, 
+     ecurrt::Vector{T}, 
+     green::GreenFunctionTables{Float64},
+     wall::Dict{Symbol,<:Any}, 
+     basis_functions::Dict{Symbol,<:Any}, 
+     bf1d_itp::Dict{Symbol,<:Any}) where {T<:Real}
     psipla = zeros(129, 129)
     Ip1 = 0.0
 
@@ -109,8 +115,8 @@ function predict_kinetic(y, r_tom, z_tom, ne_tom, Te_tom, r_cer, z_cer, nc_cer, 
     psiext = EGGO.calculate_psiext(fcurrt, ecurrt, green)
     psi = psipla .+ psiext
 
-    r = range(green[:rgrid][1], green[:rgrid][end], length(green[:rgrid]))
-    z = range(green[:zgrid][1], green[:zgrid][end], length(green[:zgrid]))
+    r = range(green.rgrid[1], green.rgrid[end], length(green.rgrid))
+    z = range(green.zgrid[1], green.zgrid[end], length(green.zgrid))
     rwall = Float64.(wall[:rlim])
     zwall = Float64.(wall[:zlim])
     PSI_itp = Interpolations.scale(Interpolations.interpolate(psi, Interpolations.BSpline(Interpolations.Cubic(Interpolations.Line(Interpolations.OnGrid())))), r, z)
