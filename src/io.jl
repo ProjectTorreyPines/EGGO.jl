@@ -6,7 +6,6 @@ function get_basis_functions(model_name)
     if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils
         filename = dirname(@__DIR__) * "/models/basis_functions.h5"
     elseif model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
-        print("here")
 
         filename = dirname(@__DIR__) * "/models/basis_functions_efit01efit02cake02.h5"
     elseif model_name == :d3d_cakenn_free
@@ -79,7 +78,7 @@ function get_greens_function_tables(model_name)
 end
 
 function get_wall(model_name)
-    if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
+    if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils || model_name == :d3d_cakenn_free
         filename = dirname(@__DIR__) * "/models/wall.h5"
     end
     wall = read_hdf5_auto(filename)
@@ -107,6 +106,8 @@ function get_model(model_name)
         filename = dirname(@__DIR__) * "/models/model_efit01efit02cake02_coils.bson"
     elseif model_name == :d3d_efit01_coils
         filename = dirname(@__DIR__) * "/models/model_efit01_coils.bson"
+    elseif model_name == :d3d_cakenn_free
+        filename = dirname(@__DIR__) * "/models/model_efit01efit02cake02_free.bson"
     end
     NNmodel = Dict{Symbol,Any}()
     for (field, value) in BSON.load(filename, @__MODULE__)[:NNmodel]

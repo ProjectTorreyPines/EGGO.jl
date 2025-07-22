@@ -6,7 +6,7 @@ using StatsBase
 #    return y_psi, y_ne, y_Te, y_nc
 #end
 
-function predict_psipla_free(expsi,expmp2,brsp,ecurrt,ip,NNmodel,green,basis_functions)
+function predict_psipla_free(expsi,expmp2,fcurrt,ecurrt,ip,NNmodel,green,basis_functions)
 
     nfsum = green[:nfsum]
     nesum = green[:nesum]
@@ -15,7 +15,7 @@ function predict_psipla_free(expsi,expmp2,brsp,ecurrt,ip,NNmodel,green,basis_fun
 
     siref = copy(expsi[1])    # Clone the first column to `siref`
 
-    cm1_flux = sum(green[:rsilfc] .* reshape(brsp,1,nfsum), dims=2)[:,1]
+    cm1_flux = sum(green[:rsilfc] .* reshape(fcurrt,1,nfsum), dims=2)[:,1]
     cm2_flux = sum(green[:rsilec] .* reshape(ecurrt,1,nesum), dims=2)[:,1]
     cm3_flux = 0.0
     psiloop_ext = cm1_flux .+ cm2_flux .+ cm3_flux .- siref
@@ -23,7 +23,7 @@ function predict_psipla_free(expsi,expmp2,brsp,ecurrt,ip,NNmodel,green,basis_fun
     psiloop_in[1] -=siref
     # Compute external contributions for probes
 
-    cm1_probe = sum(green[:rmp2fc] .* reshape(brsp,1,nfsum), dims=2)[:,1]
+    cm1_probe = sum(green[:rmp2fc] .* reshape(fcurrt,1,nfsum), dims=2)[:,1]
     cm2_probe = sum(green[:rmp2ec] .* reshape(ecurrt,1,nesum), dims=2)[:,1]    
     cm3_probe = 0.0
     bp_in = expmp2 .- cm1_probe .- cm2_probe .- cm3_probe
@@ -40,27 +40,16 @@ function predict_psipla_free(expsi,expmp2,brsp,ecurrt,ip,NNmodel,green,basis_fun
 
     A = vcat(basis_functions[:psi_loop], basis_functions[:bp_probe], -reshape(basis_functions[:Ip],1,32) ./ 1e6)
     
-    #mask = vcat.(expsi .!= 0.0, expmp2 .!= 0.0, true)  # Keep Ip unconditionally
     mask_psi = expsi .!= 0.0
     mask_bp  = expmp2 .!= 0.0
     mask_ip  = trues(1)  # Always true
-    
     mask = vcat(mask_psi, mask_bp, mask_ip)
-    #X[.!mask, :] .= 0.0
-    #A[.!mask, :] .= 0.0
+
     npca = 6
-    #S = ADMM(A[mask, 1:npca], reg = L1Regularization(.0000001));
-    #y_test = solve!(S, X[mask, 1])
-    y_test = EGGO.reg_solve(A[mask, 1:npca],X[mask, 1],1e-10)
-    #X[:,:] *=0.0
+    y_test = reg_solve(A[mask, 1:npca],X[mask, 1],1e-10)
     for ipca in 1:npca
         X[.!mask, 1] += A[.!mask, ipca]*y_test[ipca]
-        #X[:, 1] += A[:, ipca]*y_test[ipca]
     end
-    
-
-
-    #NNmodel = BSON.load("/Users/mcclenaghan/.julia/dev/EGGO/models/model_efit01efit02cake02_free.bson")[:NNmodel]#[:basis_functions_1d]
     
     model = NNmodel[:model]
     x_min = NNmodel[:x_min]
@@ -68,7 +57,7 @@ function predict_psipla_free(expsi,expmp2,brsp,ecurrt,ip,NNmodel,green,basis_fun
     y_min = NNmodel[:y_min]
     y_max = NNmodel[:y_max]
 
-    X[end] *=1e6
+    X[end] *= 1e6
     XNN = vcat(X,fcurrt,ecurrt)
     x = EGGO.minmax_normalize(XNN, x_min, x_max)
     y = model(x)
@@ -79,7 +68,7 @@ function predict_psipla_free(expsi,expmp2,brsp,ecurrt,ip,NNmodel,green,basis_fun
 end
 
 
-function predict_kinetic(r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,green,wall,basis_functions,bf1d_itp)
+function predict_kinetic(y,r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,fcurrt,ecurrt,green,wall,basis_functions,bf1d_itp)
     psipla = zeros(129, 129)
     Ip1 = 0.0
     
@@ -108,8 +97,9 @@ function predict_kinetic(r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,green,wall
     # Here we use Gaussian-like weighting to align separatrix
     T_sep = 80.0
     tolerance = 40.0
-    if length(indices>0)
-        indices = findall(abs.(Te_tom .- T_sep) .< tolerance)
+    indices = findall(abs.(Te_tom .- T_sep) .< tolerance)
+
+    if length(indices)>0
 
         weights = [exp(-((Te - T_sep)^2) / (2*(tolerance/2)^2)) for Te in Te_tom[indices]]
         psi_sep = mean(psi_tom[indices], Weights(weights))    
@@ -139,8 +129,9 @@ function predict_kinetic(r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,green,wall
     
     psi_cer = [] 
     for (r,z) in zip(r_cer,z_cer)
-        push!(psi_tom,PSI_itp(r,z))
+        push!(psi_cer,PSI_itp(r,z))
     end
+
     Anc = zeros(length(psi_cer),17)
     for (i,ps) in enumerate(psi_cer)
         for j in 1:9
