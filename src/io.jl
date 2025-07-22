@@ -9,7 +9,7 @@ function get_basis_functions(model_name)
 
         filename = dirname(@__DIR__) * "/models/basis_functions_efit01efit02cake02.h5"
     elseif model_name == :d3d_cakenn_free
-        filename = dirname(@__DIR__) * "/models/basis_functions_efit01efit02cake02.h5"
+        filename = dirname(@__DIR__) * "/models/basis_functions_cakenn.h5"
     end
     basis_functions = read_hdf5_auto(filename)
     return basis_functions
@@ -47,8 +47,8 @@ function get_basis_functions_1d(model_name)
             for i in 1:size(basis_functions_1d[:Te])[1]
         ]
         bf1d_itp[:nc] = [
-            IMAS.interp1d(basis_functions_1d[:psi], basis_functions_1d[:Te][i, :])
-            for i in 1:size(basis_functions_1d[:Te])[1]
+            IMAS.interp1d(basis_functions_1d[:psi], basis_functions_1d[:nc][i, :])
+            for i in 1:size(basis_functions_1d[:nc])[1]
         ]
     end
     return basis_functions_1d, bf1d_itp
@@ -107,7 +107,7 @@ function get_model(model_name)
     elseif model_name == :d3d_efit01_coils
         filename = dirname(@__DIR__) * "/models/model_efit01_coils.bson"
     elseif model_name == :d3d_cakenn_free
-        filename = dirname(@__DIR__) * "/models/model_efit01efit02cake02_free.bson"
+        filename = dirname(@__DIR__) * "/models/model_cakenn_free.bson"
     end
     NNmodel = Dict{Symbol,Any}()
     for (field, value) in BSON.load(filename, @__MODULE__)[:NNmodel]
