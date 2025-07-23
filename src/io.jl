@@ -13,8 +13,13 @@ function get_basis_functions(model_name)
     elseif model_name == :d3d_cakenn_free
         filename = dirname(@__DIR__) * "/models/basis_functions_cakenn.h5"
     end
-    basis_functions = read_hdf5_auto(filename)
-    return basis_functions
+    raw = read_hdf5_auto(filename)
+    return BasisFunctions(raw[:Ip],
+    raw[:psi_loop],
+    raw[:bp_probe],
+    raw[:Jt],
+    raw[:psi],
+    )
 end
 
 function get_basis_functions_1d(model_name)
@@ -26,34 +31,38 @@ function get_basis_functions_1d(model_name)
         filename = dirname(@__DIR__) * "/models/basis_functions_1d_cakenn.h5"
     end
 
-    basis_functions_1d = read_hdf5_auto(filename)
+    raw = read_hdf5_auto(filename)
 
     # Create interpolation of these functions on import
-    bf1d_itp = Dict{Symbol,Any}()
-    bf1d_itp[:pp] = [
-        IMAS.interp1d(basis_functions_1d[:psi], basis_functions_1d[:pp][i, :])
-        for i in 1:size(basis_functions_1d[:pp])[1]
+    raw_itp = Dict{Symbol,Any}()
+    raw_itp[:pp] = [
+        IMAS.interp1d(raw[:psi], raw[:pp][i, :])
+        for i in 1:size(raw[:pp])[1]
     ]
-    bf1d_itp[:ffp] = [
-        IMAS.interp1d(basis_functions_1d[:psi], basis_functions_1d[:ffp][i, :])
-        for i in 1:size(basis_functions_1d[:ffp])[1]
+    raw_itp[:ffp] = [
+        IMAS.interp1d(raw[:psi], raw[:ffp][i, :])
+        for i in 1:size(raw[:ffp])[1]
     ]
     
     if model_name == :d3d_cakenn_free
-        bf1d_itp[:ne] = [
-            IMAS.interp1d(basis_functions_1d[:psi], basis_functions_1d[:ne][i, :])
-            for i in 1:size(basis_functions_1d[:ne])[1]
+        raw_itp[:ne] = [
+            IMAS.interp1d(raw[:psi], raw[:ne][i, :])
+            for i in 1:size(raw[:ne])[1]
         ]
-        bf1d_itp[:Te] = [
-            IMAS.interp1d(basis_functions_1d[:psi], basis_functions_1d[:Te][i, :])
-            for i in 1:size(basis_functions_1d[:Te])[1]
+        raw_itp[:Te] = [
+            IMAS.interp1d(raw[:psi], raw[:Te][i, :])
+            for i in 1:size(raw[:Te])[1]
         ]
-        bf1d_itp[:nc] = [
-            IMAS.interp1d(basis_functions_1d[:psi], basis_functions_1d[:nc][i, :])
-            for i in 1:size(basis_functions_1d[:nc])[1]
+        raw_itp[:nc] = [
+            IMAS.interp1d(raw[:psi], raw[:nc][i, :])
+            for i in 1:size(raw[:nc])[1]
         ]
+    else
+        raw_itp[:ne] = missing
+        raw_itp[:Te] = missing
+        raw_itp[:nc] = missing
     end
-    return basis_functions_1d, bf1d_itp
+    return BasisFunctions1D(raw[:psi],raw[:pp],raw[:ffp],raw[:ne],raw[:Te],raw[:nc]), BasisFunctions1Dinterp(raw_itp[:pp],raw_itp[:ffp],raw_itp[:ne],raw_itp[:Te],raw_itp[:nc])
 end
 
 """
@@ -133,14 +142,12 @@ function get_greens_function_tables(model_name)
     )
 end
 
-
-
 function get_wall(model_name)
     if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils || model_name == :d3d_cakenn_free
         filename = dirname(@__DIR__) * "/models/wall.h5"
     end
-    wall = read_hdf5_auto(filename)
-    return wall
+    raw = read_hdf5_auto(filename)
+    return Wall(raw[:rlim],raw[:zlim])
 end
 
 function read_hdf5_auto(filename)

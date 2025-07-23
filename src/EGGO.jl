@@ -16,23 +16,23 @@ include("structures.jl")
 include("io.jl")
 include("free_eggo.jl")
 function fit_ppffp(pp::Vector{T}, ffp::Vector{T}, basis_functions_1d::Dict{Symbol,<:Any}) where {T<:Real}
-    return fit_ppffp(pp, ffp, basis_functions_1d, length(basis_functions_1d[:pp][:, 1]), length(basis_functions_1d[:ffp][:, 1]))
+    return fit_ppffp(pp, ffp, basis_functions_1d, length(basis_functions_1d.pp[:, 1]), length(basis_functions_1d.ffp[:, 1]))
 end
 
-function fit_ppffp(pp::Vector{T}, ffp::Vector{T}, basis_functions_1d::Dict{Symbol,<:Any}, pp_index::Integer, ffp_index::Integer) where {T<:Real}
-    S = ADMM(transpose(basis_functions_1d[:pp][1:pp_index, :]); reg=L2Regularization(1.0))
+function fit_ppffp(pp::Vector{T}, ffp::Vector{T}, basis_functions_1d::BasisFunctions1D{Float64}, pp_index::Integer, ffp_index::Integer) where {T<:Real}
+    S = ADMM(transpose(basis_functions_1d.pp[1:pp_index, :]); reg=L2Regularization(1.0))
     xp = solve!(S, pp)
-    Sf = ADMM(transpose(basis_functions_1d[:ffp][1:ffp_index, :]); reg=L2Regularization(1.0))
+    Sf = ADMM(transpose(basis_functions_1d.ffp[1:ffp_index, :]); reg=L2Regularization(1.0))
     xf = solve!(Sf, ffp)
     return xp, xf
 end
 
 function get_ΨaxisΨbndffppp(psirz::Matrix{T},
     green::GreenFunctionTables{Float64},
-    basis_functions::Dict{Symbol,<:Any},
-    basis_functions_1d::Dict{Symbol,<:Any},
-    bf1d_itp::Dict{Symbol,<:Any},
-    wall::Dict{Symbol,<:Any},
+    basis_functions::BasisFunctions{Float64},
+    basis_functions_1d::BasisFunctions1D{Float64},
+    bf1d_itp::BasisFunctions1Dinterp,
+    wall::Wall,
     pp_fit::Vector{T},
     ffp_fit::Vector{T},
     Ip_target=0.0) where {T<:Real}
@@ -48,14 +48,14 @@ function get_ΨaxisΨbndffppp(psirz::Matrix{T},
     Ψaxis = PSI_itp(Raxis, Zaxis)
     axis2bnd = :increasing
     Ψbnd =
-        IMAS.find_psi_boundary(r, z, psirz, Ψaxis, axis2bnd, Raxis, Zaxis, wall[:rlim], wall[:zlim];
+        IMAS.find_psi_boundary(r, z, psirz, Ψaxis, axis2bnd, Raxis, Zaxis, wall.rlim, wall.zlim;
             PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
 
     dpsi = (Ψbnd - Ψaxis) / (green.nw - 1)
     psi1d = range(Ψaxis, Ψbnd, green.nw)
     dpsi = psi1d[2] .- psi1d[1]
 
-    lcfs = IMAS.trace_simple_surfaces(psi1d[end-1:end], green.rgrid, green.zgrid, psirz, PSI_itp, Raxis, Zaxis, wall[:rlim], wall[:zlim])[end]
+    lcfs = IMAS.trace_simple_surfaces(psi1d[end-1:end], green.rgrid, green.zgrid, psirz, PSI_itp, Raxis, Zaxis, wall.rlim, wall.zlim)[end]
     Rb, Zb = lcfs.r, lcfs.z
     if Ip_target > 0.0
         is_inside = get_isinside(lcfs.r, lcfs.z, green)
@@ -71,13 +71,13 @@ function get_ΨaxisΨbndffppp(psirz::Matrix{T},
         ffp_scale = 1.0
     end
     # pp' and ff' that were actually used in EGGO
-    pp = zero(basis_functions_1d[:pp][1, :])
+    pp = zero(basis_functions_1d.pp[1, :])
     for k in eachindex(pp_fit)
-        pp .+= pp_fit[k] .* basis_functions_1d[:pp][k, :]
+        pp .+= pp_fit[k] .* basis_functions_1d.pp[k, :]
     end
-    ffp = zero(basis_functions_1d[:ffp][1, :])
+    ffp = zero(basis_functions_1d.ffp[1, :])
     for k in eachindex(ffp_fit)
-        ffp .+= ffp_fit[k] .* basis_functions_1d[:ffp][k, :]
+        ffp .+= ffp_fit[k] .* basis_functions_1d.ffp[k, :]
     end
 
     return Ψaxis, Raxis, Zaxis, Ψbnd, ffp, pp
@@ -136,8 +136,8 @@ function predict_model_from_boundary(
     ffp::Vector{T},
     NNmodel::Dict{Symbol,<:Any},
     green::GreenFunctionTables{Float64},
-    basis_functions::Dict{Symbol,<:Any},
-    basis_functions_1d::Dict{Symbol,<:Any},
+    basis_functions::BasisFunctions{Float64},
+    basis_functions_1d::BasisFunctions1D{Float64},
     coils::Union{Vector{<:VacuumFields.AbstractCoil},Nothing},
     Ip_target::Float64=0.0,
     use_vacuumfield_green::Bool=false
@@ -154,7 +154,7 @@ function predict_model_from_boundary(
     ffp_fit::Vector{T},
     NNmodel::Dict{Symbol,<:Any},
     green::GreenFunctionTables{Float64},
-    basis_functions::Dict{Symbol,<:Any},
+    basis_functions::BasisFunctions{Float64},
     coils::Union{Vector{<:VacuumFields.AbstractCoil},Nothing},
     Ip_target::Float64=0.0,
     use_vacuumfield_green::Bool=false
@@ -235,9 +235,8 @@ function predict_model_from_coils(
     fcurrt::Vector{Float64},
     NNmodel::Dict{Symbol,<:Any},
     green::GreenFunctionTables{Float64},
-
-    basis_functions::Dict{Symbol,<:Any},
-    basis_functions_1d::Dict{Symbol,<:Any},
+    basis_functions::BasisFunctions{Float64},
+    basis_functions_1d::BasisFunctions1D{Float64},
     Ip_target::Float64=0.0,
     use_vacuumfield_green::Bool=false
 ) where {T<:Real}
@@ -255,7 +254,7 @@ function predict_model_from_coils(
     NNmodel::Dict{Symbol,<:Any},
     green::GreenFunctionTables{Float64},
 
-    basis_functions::Dict{Symbol,<:Any},
+    basis_functions::BasisFunctions{Float64},
     Ip_target::Float64=0.0,
     use_vacuumfield_green::Bool=false
 ) where {T<:Real}
@@ -298,15 +297,15 @@ end
 
 function predict_model(y::Matrix{T},
     green::GreenFunctionTables{Float64},
-    basis_functions::Dict{Symbol,<:Any},
+    basis_functions::BasisFunctions{Float64},
     Ip_target::T
 ) where {T<:Real}
 
     nw = green.nw
     nh = green.nh
-    npca = length(basis_functions[:Ip])
+    npca = length(basis_functions.Ip)
 
-    Ip = dot(@views(y[1:npca]), basis_functions[:Ip])
+    Ip = dot(@views(y[1:npca]), basis_functions.Ip)
     if Ip_target !== 0.0
         y .*= Ip_target / Ip
         Ip = Ip_target
@@ -314,12 +313,12 @@ function predict_model(y::Matrix{T},
 
     psipla = zeros(T, (nw, nh))
     for ipca in 1:npca
-        @views psipla .+= y[ipca] .* transpose(basis_functions[:psi][:, :, ipca])
+        @views psipla .+= y[ipca] .* transpose(basis_functions.psi[:, :, ipca])
     end
 
     Jt = zeros(T, (nw, nh))
     for ipca in 1:npca
-        @views Jt .+= y[ipca] .* transpose(basis_functions[:Jt][:, :, ipca])
+        @views Jt .+= y[ipca] .* transpose(basis_functions.Jt[:, :, ipca])
     end
 
     return Jt, Matrix(transpose(psipla)), Ip
@@ -341,16 +340,16 @@ end
 function get_Jt_fb(pp_fit::Vector{T}, 
     ffp_fit::Vector{T}, 
     psin_rz::Matrix{T}, 
-    basis_functions_1d::Dict{Symbol,<:Any}, 
-    bf1d_itp::Dict{Symbol,<:Any}, 
+    basis_functions_1d::BasisFunctions1D{Float64}, 
+    bf1d_itp::bf1d_itp::BasisFunctions1Dinterp,, 
     green::GreenFunctionTables{Float64},
  
     is_inside::Matrix{T})where {T<:Real}
     bf2d_ppffp = Dict{Symbol,<:Any}()
     bf2d_ppffp = Dict{Symbol,<:Any}()
 
-    npp = size(basis_functions_1d[:pp])[1]
-    nffp = size(basis_functions_1d[:ffp])[1]
+    npp = size(basis_functions_1d.pp)[1]
+    nffp = size(basis_functions_1d.ffp)[1]
     bf2d_ppffp[:pp] = zeros(npp, green.nh * green.nw)
     bf2d_ppffp[:ffp] = zeros(nffp, green.nh * green.nw)
     Jt_pp = zeros(green.nh, green.nw)
@@ -359,10 +358,10 @@ function get_Jt_fb(pp_fit::Vector{T},
     for (j, z) in enumerate(green.zgrid)
         for (i, r) in enumerate(green.rgrid)
             for ib in 1:npp
-                Jt_pp[i, j] -= pp_fit[ib] .* bf1d_itp[:pp][ib](psin_rz[j, i]) * green.rgrid[i] * is_inside[i, j]
+                Jt_pp[i, j] -= pp_fit[ib] .* bf1d_itp.pp[ib](psin_rz[j, i]) * green.rgrid[i] * is_inside[i, j]
             end
             for ib in 1:nffp
-                Jt_ffp[i, j] -= ffp_fit[ib] .* bf1d_itp[:ffp][ib](psin_rz[j, i]) / green.rgrid[i] * is_inside[i, j] / (4 * pi * 1e-7)
+                Jt_ffp[i, j] -= ffp_fit[ib] .* bf1d_itp.ffp[ib](psin_rz[j, i]) / green.rgrid[i] * is_inside[i, j] / (4 * pi * 1e-7)
             end
         end
     end
@@ -373,8 +372,8 @@ end
 function get_Jt_fb(pp_fit::Vector{T},
     ffp_fit::Vector{T},
     psin_rz::Matrix{T},
-    basis_functions_1d::Dict{Symbol,<:Any},
-    bf1d_itp::Dict{Symbol,<:Any},
+    basis_functions_1d::BasisFunctions1D{Float64},
+    bf1d_itp::BasisFunctions1Dinterp,
     green::GreenFunctionTables{Float64},
     is_inside::Matrix{T}) where {T<:Real}
 
@@ -400,13 +399,13 @@ function get_Jt_fb(pp_fit::Vector{T},
 
                 # Vectorized computation for pp
                 for ib in 1:npp
-                    Jt_pp[i, j] -= pp_fit[ib] * bf1d_itp[:pp][ib](psin_val) * r * is_inside[i, j]
+                    Jt_pp[i, j] -= pp_fit[ib] * bf1d_itp.pp[ib](psin_val) * r * is_inside[i, j]
                 end
 
                 # Vectorized computation for ffp
                 r_inv = inv(r)
                 for ib in 1:nffp
-                    Jt_ffp[i, j] -= ffp_fit[ib] * bf1d_itp[:ffp][ib](psin_val) * r_inv * is_inside[i, j] / IMAS.mks.μ_0
+                    Jt_ffp[i, j] -= ffp_fit[ib] * bf1d_itp.ffp[ib](psin_val) * r_inv * is_inside[i, j] / IMAS.mks.μ_0
                 end
             end
         end
@@ -503,7 +502,7 @@ function predict_coil_currents(Rb::Vector{T}, Zb::Vector{T}, green::GreenFunctio
     return x[1:nesum], x[nesum+1:end]
 end
 
-function reg_solve(A, b, λ)
+function reg_solve(A::Matrix{T}, b::Vector{T}, λ::T) where {T<:Real}
     return (A' * A + λ * I) \ A' * b
 end
 

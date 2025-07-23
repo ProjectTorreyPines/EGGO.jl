@@ -9,8 +9,8 @@ function predict_psipla_free(shot::Int,
     ecurrt::Vector{T},
     ip::T,
     NNmodel::Dict{Symbol,<:Any},
-    green::GreenFunctionTables{Float64},
-    basis_functions::Dict{Symbol,<:Any}) where {T<:Real}
+    green::GreenFunctionTables{T},
+    basis_functions::BasisFunctions{T}) where {T<:Float64}
     nfsum = green.nfsum
     nesum = green.nesum
     nsilop = green.nsilop
@@ -25,7 +25,6 @@ function predict_psipla_free(shot::Int,
     psiloop_in = expsi .- psiloop_ext
     psiloop_in[1] -= siref
     # Compute external contributions for probes
-
 
     mask_mpi = ones(Float64, 76)
 
@@ -56,7 +55,7 @@ function predict_psipla_free(shot::Int,
 
     # Build matrices for regression
 
-    A = vcat(basis_functions[:psi_loop], basis_functions[:bp_probe], -reshape(basis_functions[:Ip], 1, 32) ./ 1e6)
+    A = vcat(basis_functions.psi_loop, basis_functions.bp_probe, -reshape(basis_functions.Ip, 1, 32) ./ 1e6)
 
     mask_psi = fwtsi .* expsi .!= 0.0
     mask_bp = mask_mpi .* expmp2 .!= 0.0
@@ -83,13 +82,133 @@ function predict_psipla_free(shot::Int,
     y = EGGO.minmax_unnormalize(y, y_min, y_max)  # Convert back to original scale
 
     # Correct Ip to match experimental Ip
-    IpNN = sum(basis_functions[:Ip].*y)
+    IpNN = sum(basis_functions.Ip.*y)
     y .*=  ip /IpNN 
 
     return y[:,1], XNN#-1*y_lsq
 end
 
 
+function predict_kinetic(y::Vector{T},
+    r_tom::Vector{T},
+    z_tom::Vector{T}, 
+    ne_tom::Vector{T}, 
+    Te_tom::Vector{T}, 
+    r_cer::Vector{T}, 
+    z_cer::Vector{T}, 
+    nc_cer::Vector{T}, 
+    fcurrt::Vector{T}, 
+    ecurrt::Vector{T}, 
+    green::GreenFunctionTables{Float64},
+    wall::Wall, 
+    basis_functions::BasisFunctions{Float64},
+    bf1d_itp::BasisFunctions1Dinterp) where {T<:Real}
+   
+   # Pre-allocate with correct size and use view for efficiency
+   psipla = zeros(T, 129, 129)
+   Ip1 = zero(T)
+
+   # Vectorized operations for basis function combination
+   @views for ipca in 1:32
+       psipla .+= y[ipca] .* basis_functions.psi[:, :, ipca]
+       Ip1 += basis_functions.Ip[ipca] * y[ipca]
+   end
+
+   psiext = EGGO.calculate_psiext(fcurrt, ecurrt, green)
+   psi = psipla .+ psiext
+
+   # Create ranges once
+   r = range(green.rgrid[1], green.rgrid[end], length=length(green.rgrid))
+   z = range(green.zgrid[1], green.zgrid[end], length=length(green.zgrid))
+   rwall = Float64.(wall.rlim)
+   zwall = Float64.(wall.zlim)
+   PSI_itp = Interpolations.scale(Interpolations.interpolate(psi, Interpolations.BSpline(Interpolations.Cubic(Interpolations.Line(Interpolations.OnGrid())))), r, z)
+
+   Raxis, Zaxis = IMAS.find_magnetic_axis(r, z, PSI_itp, 1; rguess=r[65], zguess=z[65])
+   psiaxis = PSI_itp(Raxis, Zaxis)
+
+   # Pre-allocate and vectorize psi calculations
+   psi_tom = Vector{T}(undef, length(r_tom))
+   @inbounds for i in eachindex(r_tom, z_tom)
+       psi_tom[i] = PSI_itp(r_tom[i], z_tom[i])
+   end
+
+   # Optimized separatrix calculation
+   T_sep = 80.0
+   tolerance = 40.0
+   
+   # Use broadcasting for condition check
+   close_to_sep = abs.(Te_tom .- T_sep) .< tolerance
+   indices = findall(close_to_sep)
+
+   psi_sep = if !isempty(indices)
+       # Vectorized weight calculation
+       Te_subset = @view Te_tom[indices]
+       weights = @. exp(-((Te_subset - T_sep)^2) / (2 * (tolerance / 2)^2))
+       sum(@view(psi_tom[indices]) .* weights) / sum(weights)  # Manual weighted mean for efficiency
+   else
+       axis2bnd = :increasing
+       empty_r = T[]
+       empty_z = T[]
+       IMAS.find_psi_boundary(r, z, psi, psiaxis, axis2bnd, Raxis, Zaxis, rwall, zwall, empty_r, empty_z;
+           PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
+   end
+
+   # Combined matrix construction for Thomson data
+   n_tom = length(psi_tom)
+   npca1d_tom = min(9, n_tom)
+   
+   # Pre-allocate matrices
+   Ane = zeros(T, n_tom, npca1d_tom)
+   ATe = zeros(T, n_tom, npca1d_tom)
+   
+   # Combined loop with bounds checking
+   psi_norm_factor = inv(psi_sep - psiaxis)
+   @inbounds for i in 1:n_tom
+       psi_norm = (psi_tom[i] - psiaxis) * psi_norm_factor
+       
+       # Fill both matrices in single loop
+       if ne_tom[i] > 0
+           for j in 1:npca1d_tom
+               Ane[i, j] = bf1d_itp.ne[j](psi_norm)
+           end
+       end
+       
+       if Te_tom[i] > 0
+           for j in 1:npca1d_tom
+               ATe[i, j] = bf1d_itp.Te[j](psi_norm)
+           end
+       end
+   end
+
+   # Solve for Thomson coefficients
+   c_ne = EGGO.reg_solve(Ane, ne_tom, 1.0)
+   c_Te = EGGO.reg_solve(ATe, Te_tom, 1.0)
+
+   # CER data processing
+   n_cer = length(r_cer)
+   psi_cer = Vector{T}(undef, n_cer)
+   @inbounds for i in 1:n_cer
+       psi_cer[i] = PSI_itp(r_cer[i], z_cer[i])
+   end
+
+   npca1d_cer = min(9, n_cer)
+   Anc = zeros(T, n_cer, npca1d_cer)
+   
+   @inbounds for i in 1:n_cer
+       if i <= length(ne_tom) && ne_tom[i] > 0  # Guard against index bounds
+           psi_norm = (psi_cer[i] - psiaxis) * psi_norm_factor
+           for j in 1:npca1d_cer
+               Anc[i, j] = bf1d_itp.nc[j](psi_norm)
+           end
+       end
+   end
+   
+   c_nc = EGGO.reg_solve(Anc, nc_cer, 1.0)
+
+   return c_ne, c_Te, c_nc
+end
+"""
 function predict_kinetic(y::Vector{T},
      r_tom::Vector{T},
      z_tom::Vector{T}, 
@@ -101,15 +220,15 @@ function predict_kinetic(y::Vector{T},
      fcurrt::Vector{T}, 
      ecurrt::Vector{T}, 
      green::GreenFunctionTables{Float64},
-     wall::Dict{Symbol,<:Any}, 
-     basis_functions::Dict{Symbol,<:Any}, 
-     bf1d_itp::Dict{Symbol,<:Any}) where {T<:Real}
+     wall::Wall, 
+     basis_functions::BasisFunctions{Float64},
+     bf1d_itp::BasisFunctions1Dinterp) where {T<:Real}
     psipla = zeros(129, 129)
     Ip1 = 0.0
 
     for ipca in 1:32
-        psipla .+= y[ipca] .* basis_functions[:psi][:, :, ipca]
-        Ip1 += basis_functions[:Ip][ipca] * y[ipca]
+        psipla .+= y[ipca] .* basis_functions.psi[:, :, ipca]
+        Ip1 += basis_functions.Ip[ipca] * y[ipca]
     end
 
     psiext = EGGO.calculate_psiext(fcurrt, ecurrt, green)
@@ -117,8 +236,8 @@ function predict_kinetic(y::Vector{T},
 
     r = range(green.rgrid[1], green.rgrid[end], length(green.rgrid))
     z = range(green.zgrid[1], green.zgrid[end], length(green.zgrid))
-    rwall = Float64.(wall[:rlim])
-    zwall = Float64.(wall[:zlim])
+    rwall = Float64.(wall.rlim)
+    zwall = Float64.(wall.zlim)
     PSI_itp = Interpolations.scale(Interpolations.interpolate(psi, Interpolations.BSpline(Interpolations.Cubic(Interpolations.Line(Interpolations.OnGrid())))), r, z)
 
     Raxis, Zaxis = IMAS.find_magnetic_axis(r, z, PSI_itp, 1; rguess=r[65], zguess=z[65])
@@ -154,10 +273,10 @@ function predict_kinetic(y::Vector{T},
     for (i, ps) in enumerate(psi_tom)
         for j in 1:npca1d
             if ne_tom[i] > 0
-                Ane[i, j] = bf1d_itp[:ne][j]((ps - psiaxis) / (psi_sep - psiaxis))
+                Ane[i, j] = bf1d_itp.ne[j]((ps - psiaxis) / (psi_sep - psiaxis))
             end
             if Te_tom[i] > 0
-                ATe[i, j] = bf1d_itp[:Te][j]((ps - psiaxis) / (psi_sep - psiaxis))
+                ATe[i, j] = bf1d_itp.Te[j]((ps - psiaxis) / (psi_sep - psiaxis))
             end
         end
     end
@@ -176,7 +295,7 @@ function predict_kinetic(y::Vector{T},
     for (i, ps) in enumerate(psi_cer)
         for j in 1:npca1d
             if ne_tom[i] > 0
-                Anc[i, j] = bf1d_itp[:nc][j]((ps - psiaxis) / (psi_sep - psiaxis))
+                Anc[i, j] = bf1d_itp.nc[j]((ps - psiaxis) / (psi_sep - psiaxis))
             end
 
         end
@@ -186,3 +305,4 @@ function predict_kinetic(y::Vector{T},
 
     return c_ne, c_Te, c_nc
 end
+"""
