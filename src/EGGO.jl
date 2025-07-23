@@ -15,6 +15,7 @@ using StatsBase
 include("structures.jl")
 include("io.jl")
 include("free_eggo.jl")
+
 function fit_ppffp(pp::Vector{T}, ffp::Vector{T}, basis_functions_1d::BasisFunctions1D{Float64}) where {T<:Real}
     return fit_ppffp(pp, ffp, basis_functions_1d, length(basis_functions_1d.pp[:, 1]), length(basis_functions_1d.ffp[:, 1]))
 end
@@ -252,9 +253,7 @@ function predict_model_from_coils(
     ecurrt::Vector{Float64},
     fcurrt::Vector{Float64},
     NNmodel::Dict{Symbol,<:Any},
-    green::GreenFunctionTables{Float64},
-
-    basis_functions::BasisFunctions{Float64},
+    green::GreenFunctionTables{Float64}, basis_functions::BasisFunctions{Float64},
     Ip_target::Float64=0.0,
     use_vacuumfield_green::Bool=false
 ) where {T<:Real}
@@ -336,38 +335,6 @@ function get_isinside(Rb, Zb, green)
     return is_inside
 end
 
-"""
-function get_Jt_fb(pp_fit::Vector{T}, 
-    ffp_fit::Vector{T}, 
-    psin_rz::Matrix{T}, 
-    basis_functions_1d::BasisFunctions1D{Float64}, 
-    bf1d_itp::bf1d_itp::BasisFunctions1Dinterp,, 
-    green::GreenFunctionTables{Float64},
- 
-    is_inside::Matrix{T})where {T<:Real}
-    bf2d_ppffp = Dict{Symbol,<:Any}()
-    bf2d_ppffp = Dict{Symbol,<:Any}()
-
-    npp = size(basis_functions_1d.pp)[1]
-    nffp = size(basis_functions_1d.ffp)[1]
-    bf2d_ppffp[:pp] = zeros(npp, green.nh * green.nw)
-    bf2d_ppffp[:ffp] = zeros(nffp, green.nh * green.nw)
-    Jt_pp = zeros(green.nh, green.nw)
-    Jt_ffp = zeros(green.nh, green.nw)
-
-    for (j, z) in enumerate(green.zgrid)
-        for (i, r) in enumerate(green.rgrid)
-            for ib in 1:npp
-                Jt_pp[i, j] -= pp_fit[ib] .* bf1d_itp.pp[ib](psin_rz[j, i]) * green.rgrid[i] * is_inside[i, j]
-            end
-            for ib in 1:nffp
-                Jt_ffp[i, j] -= ffp_fit[ib] .* bf1d_itp.ffp[ib](psin_rz[j, i]) / green.rgrid[i] * is_inside[i, j] / (4 * pi * 1e-7)
-            end
-        end
-    end
-    return Jt_pp,Jt_ffp
-end
-"""
 
 function get_Jt_fb(pp_fit::Vector{T},
     ffp_fit::Vector{T},

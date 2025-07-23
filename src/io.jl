@@ -15,10 +15,10 @@ function get_basis_functions(model_name)
     end
     raw = read_hdf5_auto(filename)
     return BasisFunctions(raw[:Ip],
-    raw[:psi_loop],
-    raw[:bp_probe],
-    raw[:Jt],
-    raw[:psi],
+        raw[:psi_loop],
+        raw[:bp_probe],
+        raw[:Jt],
+        raw[:psi]
     )
 end
 
@@ -43,7 +43,7 @@ function get_basis_functions_1d(model_name)
         IMAS.interp1d(raw[:psi], raw[:ffp][i, :])
         for i in 1:size(raw[:ffp])[1]
     ]
-    
+
     if model_name == :d3d_cakenn_free
         raw_itp[:ne] = [
             IMAS.interp1d(raw[:psi], raw[:ne][i, :])
@@ -65,43 +65,22 @@ function get_basis_functions_1d(model_name)
         raw_itp[:Te] = missing
         raw_itp[:nc] = missing
     end
-    return BasisFunctions1D(raw[:psi],raw[:pp],raw[:ffp],raw[:ne],raw[:Te],raw[:nc]), BasisFunctions1Dinterp(raw_itp[:pp],raw_itp[:ffp],raw_itp[:ne],raw_itp[:Te],raw_itp[:nc])
+    return BasisFunctions1D(raw[:psi], raw[:pp], raw[:ffp], raw[:ne], raw[:Te], raw[:nc]),
+    BasisFunctions1Dinterp(raw_itp[:pp], raw_itp[:ffp], raw_itp[:ne], raw_itp[:Te], raw_itp[:nc])
 end
 
-"""
 function get_greens_function_tables(model_name)
-    if (model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
-        model_name == :d3d_cakenn_free)
-        filename = dirname(@__DIR__) * "/models/green.h5"
-    end
-    green = read_hdf5_auto(filename)
-
-    r = range(green[:rgrid][1],green[:rgrid][end],length(green[:rgrid]))
-    z = range(green[:zgrid][1],green[:zgrid][end],length(green[:zgrid]))
-    green[:ggridfc_itp]=Vector()
-    green[:gridec_itp] =Vector()
-    
-    for i in 1:size(green[:ggridfc])[2]
-        push!(green[:ggridfc_itp], Interpolations.cubic_spline_interpolation((r, z), transpose(reshape(green[:ggridfc][:,i],green[:nw],green[:nh])); extrapolation_bc=Interpolations.Line()))
-    end
-    
-    for i in 1:size(green[:gridec])[2]
-        push!(green[:gridec_itp], Interpolations.cubic_spline_interpolation((r, z), transpose(reshape(green[:gridec][:,i],green[:nw],green[:nh])); extrapolation_bc=Interpolations.Line()))
-    end
-    
-    return green
-end
-"""
-function get_greens_function_tables(model_name)
-    if (model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
-        model_name == :d3d_cakenn_free)
+    if (
+        model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
+        model_name == :d3d_cakenn_free
+    )
         filename = dirname(@__DIR__) * "/models/green.h5"
     end
 
     raw = read_hdf5_auto(filename)
 
-    r = range(raw[:rgrid][1], raw[:rgrid][end], length=length(raw[:rgrid]))
-    z = range(raw[:zgrid][1], raw[:zgrid][end], length=length(raw[:zgrid]))
+    r = range(raw[:rgrid][1], raw[:rgrid][end]; length=length(raw[:rgrid]))
+    z = range(raw[:zgrid][1], raw[:zgrid][end]; length=length(raw[:zgrid]))
 
     ggridfc_itp = Vector{Any}()
     gridec_itp = Vector{Any}()
@@ -117,7 +96,7 @@ function get_greens_function_tables(model_name)
             transpose(reshape(raw[:gridec][:, i], raw[:nw], raw[:nh]));
             extrapolation_bc=Interpolations.Line()))
     end
- 
+
     return GreenFunctionTables(
         raw[:nw],
         raw[:nh],
@@ -146,11 +125,12 @@ function get_greens_function_tables(model_name)
 end
 
 function get_wall(model_name)
-    if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils || model_name == :d3d_cakenn_free
+    if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
+       model_name == :d3d_cakenn_free
         filename = dirname(@__DIR__) * "/models/wall.h5"
     end
     raw = read_hdf5_auto(filename)
-    return Wall(raw[:rlim],raw[:zlim])
+    return Wall(raw[:rlim], raw[:zlim])
 end
 
 function read_hdf5_auto(filename)
