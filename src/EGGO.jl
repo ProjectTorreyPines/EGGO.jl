@@ -40,8 +40,8 @@ function get_ΨaxisΨbndffppp(psirz::Matrix{T},
     r = range(green.rgrid[1], green.rgrid[end], length(green.rgrid))
     z = range(green.zgrid[1], green.zgrid[end], length(green.zgrid))
 
-    rguess = green.RR[(green.nw+1)÷2, (green.nh+1)÷2]
-    zguess = green.ZZ[(green.nw+1)÷2, (green.nh+1)÷2]
+    rguess = green.rgrid[(green.nw+1)÷2]
+    zguess = green.zgrid[(green.nw+1)÷2]
 
     PSI_itp = Interpolations.cubic_spline_interpolation((r, z), psirz; extrapolation_bc=Interpolations.Line())
     Raxis, Zaxis = IMAS.find_magnetic_axis(r, z, PSI_itp, 1; rguess=rguess, zguess=zguess)
@@ -502,7 +502,7 @@ function predict_coil_currents(Rb::Vector{T}, Zb::Vector{T}, green::GreenFunctio
     return x[1:nesum], x[nesum+1:end]
 end
 
-function reg_solve(A::Matrix{T}, b::Vector{T}, λ::T) where {T<:Real}
+function reg_solve(A::AbstractArray{T}, b::AbstractArray{T}, λ::T) where {T<:Real}
     return (A' * A + λ * I) \ A' * b
 end
 

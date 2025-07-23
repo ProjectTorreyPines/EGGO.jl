@@ -171,7 +171,12 @@ end
     wall = EGGO.get_wall(model_name)
     NNmodel = EGGO.get_model(model_name)
     # Predict equilibrium
-    y_psi, X = EGGO.predict_psipla_free(shot,expsi,fwtsi,expmp2,fwtmp2,fcurrt,ecurrt,Ip,NNmodel,green,basis_functions)
+    y_psi, X_psi = EGGO.predict_psipla_free(shot,expsi,fwtsi,expmp2,fwtmp2,fcurrt,ecurrt,Ip,NNmodel,green,basis_functions)
     y_ne, y_Te, y_nc = EGGO.predict_kinetic(y_psi, r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,fcurrt,ecurrt,green,wall,basis_functions,bf1d_itp)
 
+    @test y_psi !== nothing
+    @test X_psi !== nothing
+    @test y_ne !== nothing
+    @test y_Te !== nothing
+    @test y_nc !== nothing
 end

@@ -144,7 +144,7 @@ function predict_kinetic(y::Vector{T},
    psi_sep = if !isempty(indices)
        # Vectorized weight calculation
        Te_subset = @view Te_tom[indices]
-       weights = @. exp(-((Te_subset - T_sep)^2) / (2 * (tolerance / 2)^2))
+       weights = @. exp(-((Te_subset - T_sep)^2) / (0.5 * tolerance^2))
        sum(@view(psi_tom[indices]) .* weights) / sum(weights)  # Manual weighted mean for efficiency
    else
        axis2bnd = :increasing

@@ -58,6 +58,9 @@ function get_basis_functions_1d(model_name)
             for i in 1:size(raw[:nc])[1]
         ]
     else
+        raw[:ne] = missing
+        raw[:Te] = missing
+        raw[:nc] = missing
         raw_itp[:ne] = missing
         raw_itp[:Te] = missing
         raw_itp[:nc] = missing
