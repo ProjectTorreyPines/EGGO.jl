@@ -1,5 +1,5 @@
 struct BasisFunctions{T<:Float64}
-    Ip::Vector{T}
+    Ip::Union{Matrix{T},Vector{T}}
     psi_loop::Matrix{T}
     bp_probe::Matrix{T}
     Jt::Array{T,3}
