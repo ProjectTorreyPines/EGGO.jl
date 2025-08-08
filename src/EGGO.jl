@@ -49,8 +49,20 @@ function get_ΨaxisΨbndffppp(psirz::Matrix{T},
     Ψaxis = PSI_itp(Raxis, Zaxis)
     axis2bnd = :increasing
     Ψbnd =
-        IMAS.find_psi_boundary(r, z, psirz, Ψaxis, axis2bnd, Raxis, Zaxis, wall.rlim, wall.zlim;
-            PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
+        IMAS.find_psi_boundary(
+            r,
+            z,
+            psirz,
+            Ψaxis,
+            axis2bnd,
+            Raxis,
+            Zaxis,
+            wall[:rlim],
+            wall[:zlim];
+            PSI_interpolant=PSI_itp,
+            raise_error_on_not_open=false,
+            raise_error_on_not_closed=false
+        ).last_closed
 
     dpsi = (Ψbnd - Ψaxis) / (green.nw - 1)
     psi1d = range(Ψaxis, Ψbnd, green.nw)
