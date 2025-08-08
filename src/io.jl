@@ -32,7 +32,17 @@ function get_basis_functions_1d(model_name)
     end
 
     raw = read_hdf5_auto(filename)
-
+    #newne = zeros(9, 129)
+    
+    #newne[1, :] = 0.5 .- 0.5 .* tanh.((raw[:psi] .- 0.975) ./ 0.025)
+    #newne[2, :] = 0.5 .- 0.5 .* tanh.((raw[:psi] .- 0.95) ./ 0.025)
+    #newne[3, :] = 0.5 .- 0.5 .* tanh.((raw[:psi] .- 0.925) ./ 0.025)
+    #newne[4, :] = 0.5 .- 0.5 .* tanh.((raw[:psi] .- 0.90) ./ 0.025)
+    #newne[5, :] = 0.5 .- 0.5 .* tanh.((raw[:psi] .- 0.875) ./ 0.025)
+    #newne[6, :] = 1 .- raw[:psi]
+    #newne[7, :] = 1 .- raw[:psi].^2
+    #newne[8, :] = 1 .- raw[:psi].^3
+    #newne[9, :] = 1 .- raw[:psi].^4
     # Create interpolation of these functions on import
     raw_itp = Dict{Symbol,Any}()
     raw_itp[:pp] = [
@@ -65,6 +75,7 @@ function get_basis_functions_1d(model_name)
         raw_itp[:Te] = missing
         raw_itp[:nc] = missing
     end
+
     return BasisFunctions1D(raw[:psi], raw[:pp], raw[:ffp], raw[:ne], raw[:Te], raw[:nc]),
     BasisFunctions1Dinterp(raw_itp[:pp], raw_itp[:ffp], raw_itp[:ne], raw_itp[:Te], raw_itp[:nc])
 end

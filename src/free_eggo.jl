@@ -156,7 +156,7 @@ function predict_kinetic(y::Vector{T},
 
     # Combined matrix construction for Thomson data
     n_tom = length(psi_tom)
-    npca1d_tom = min(9, n_tom)
+    npca1d_tom = min(6, n_tom)
 
     # Pre-allocate matrices
     Ane = zeros(T, n_tom, npca1d_tom)
@@ -182,8 +182,8 @@ function predict_kinetic(y::Vector{T},
     end
 
     # Solve for Thomson coefficients
-    c_ne = EGGO.reg_solve(Ane, ne_tom, 1.0)
-    c_Te = EGGO.reg_solve(ATe, Te_tom, 1.0)
+    c_ne = EGGO.reg_solve(Ane, ne_tom, 1.0e6)
+    c_Te = EGGO.reg_solve(ATe, Te_tom, 1.0e6)
 
     # CER data processing
     n_cer = length(r_cer)

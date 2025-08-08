@@ -335,7 +335,6 @@ function get_isinside(Rb, Zb, green)
     return is_inside
 end
 
-
 function get_Jt_fb(pp_fit::Vector{T},
     ffp_fit::Vector{T},
     psin_rz::Matrix{T},
@@ -380,6 +379,91 @@ function get_Jt_fb(pp_fit::Vector{T},
 
     return Jt_pp, Jt_ffp
 end
+
+
+function fit_pp_ffp(pp_fit::Vector{T},
+    ffp_fit::Vector{T},
+    psin_rz::Matrix{T},
+    basis_functions_1d::BasisFunctions1D{Float64},
+    bf1d_itp::BasisFunctions1Dinterp,
+    green::GreenFunctionTables{Float64},
+    is_inside::Matrix{T}) where {T<:Real}
+
+    # Pre-extract values to avoid repeated dictionary lookups
+    rgrid = green.rgrid
+    zgrid = green.zgrid
+    nh = green.nh
+    nw = green.nw
+
+    npp = length(pp_fit)
+    nffp = length(ffp_fit)
+
+    # Pre-allocate output arrays
+    Jt_pp = zeros(T, nh, nw)
+    Jt_ffp = zeros(T, nh, nw)
+
+    Threads.@threads for j in 1:nw
+        z = zgrid[j]
+        @inbounds for i in 1:nh
+            r = rgrid[i]
+            if is_inside[i, j] != 0  # Skip if outside
+                psin_val = psin_rz[j, i]
+
+                # Vectorized computation for pp
+                for ib in 1:npp
+                    Jt_pp[i, j] -= pp_fit[ib] * bf1d_itp.pp[ib](psin_val) * r * is_inside[i, j]
+                end
+
+                # Vectorized computation for ffp
+                r_inv = inv(r)
+                for ib in 1:nffp
+                    Jt_ffp[i, j] -= ffp_fit[ib] * bf1d_itp.ffp[ib](psin_val) * r_inv * is_inside[i, j] / IMAS.mks.μ_0
+                end
+            end
+        end
+    end
+
+    return Jt_pp, Jt_ffp
+end
+
+
+
+function calc_pffprime2(psinrz::Matrix{Float64}, Jt::Matrix{Float64}, rgrid::Vector{Float64}, is_inside::Matrix{Float64},bf1d_itp:: BasisFunctions1Dinterp)
+
+    npp = length( bf1d_itp.pp)
+    nffp = length( bf1d_itp.ffp)
+    n = length(psinrz)
+    A = zeros(npp + nffp, n)
+    nw = nh = 129
+    nffp = 6
+    npp = 6
+    # Construct X matrix
+    Threads.@threads for j in 1:nw
+        @inbounds for i in 1:nh
+            r = rgrid[j]
+            ij = j*nw +i
+            if is_inside[i, j] != 0  # Skip if outside
+                psin_val = psinrz[j, i]
+
+                # Vectorized computation for pp
+                for ib in 1:npp
+                    A[ib, ij] = bf1d_itp.pp[ib](psin_val) /r#/ r^2  #/ r#* r^2 
+                end
+
+                for ib in 1:nffp
+                    A[ib+npp, ij] = bf1d_itp.ffp[ib](psin_val) 
+                end
+            end
+        end
+    end
+    #return A
+    b = vec(Jt)
+    # Solve least squares: x = argmin ||X'x - b||
+    x = reg_solve(A', b, 1.0)
+
+    return x[1:npp],x[npp+1:end]
+end
+
 
 """
 function predict_coil_currents(Rb::Vector{T},Zb::Vector{T},green::GreenFunctionTables{Float64},
