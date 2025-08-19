@@ -1,3 +1,11 @@
+struct NeuralNetModel{T<:Float64}
+    model::Flux.Chain
+    y_min::Matrix{T}
+    y_max::Matrix{T}
+    x_min::Matrix{T}
+    x_max::Matrix{T}
+end
+
 struct BasisFunctions{T<:Float64}
     Ip::Union{Matrix{T},Vector{T}}
     psi_loop::Matrix{T}
@@ -23,7 +31,7 @@ struct BasisFunctions1Dinterp
     nc::Union{Vector{Any},Missing}
 end
 
-struct GreenFunctionTables{T<:Float64}
+mutable struct GreenFunctionTables{T<:Float64}
     nw::Int
     nh::Int
     nfsum::Int
@@ -47,6 +55,7 @@ struct GreenFunctionTables{T<:Float64}
     gridec::Matrix{T}
     ggridfc_itp::Vector{Any}
     gridec_itp::Vector{Any}
+    ggridfc_vf::Union{Missing,Array{Float64, 3}}
 end
 
 struct Wall

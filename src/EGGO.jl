@@ -57,8 +57,8 @@ function get_ΨaxisΨbndffppp(psirz::Matrix{T},
             axis2bnd,
             Raxis,
             Zaxis,
-            wall[:rlim],
-            wall[:zlim];
+            wall.rlim,
+            wall.zlim;
             PSI_interpolant=PSI_itp,
             raise_error_on_not_open=false,
             raise_error_on_not_closed=false
@@ -142,12 +142,29 @@ function minmax_unnormalize(x_norm, min_x, max_x)
     return x_norm .* (max_x .- min_x) .+ min_x
 end
 
+function predict_NN(xunnorm,NNmodel)
+
+    model = NNmodel.model
+
+    x_min = NNmodel.x_min
+    x_max = NNmodel.x_max
+    y_min = NNmodel.y_min
+    y_max = NNmodel.y_max
+
+    x = minmax_normalize(xunnorm, x_min, x_max)
+    y = model(x)
+
+    x = minmax_unnormalize(x, x_min, x_max) # Convert back to original scale
+    y = minmax_unnormalize(y, y_min, y_max)  # Convert back to original scale
+    return y
+end
+
 function predict_model_from_boundary(
     Rb::Vector{T},
     Zb::Vector{T},
     pp::Vector{T},
     ffp::Vector{T},
-    NNmodel::Dict{Symbol,<:Any},
+    NNmodel::NeuralNetModel{Float64},
     green::GreenFunctionTables{Float64},
     basis_functions::BasisFunctions{Float64},
     basis_functions_1d::BasisFunctions1D{Float64},
@@ -165,7 +182,7 @@ function predict_model_from_boundary(
     Zb::Vector{T},
     pp_fit::Vector{T},
     ffp_fit::Vector{T},
-    NNmodel::Dict{Symbol,<:Any},
+    NNmodel::NeuralNetModel{Float64},
     green::GreenFunctionTables{Float64},
     basis_functions::BasisFunctions{Float64},
     coils::Union{Vector{<:VacuumFields.AbstractCoil},Nothing},
@@ -190,12 +207,12 @@ function predict_model_from_boundary(
         pp_fit,
         ffp_fit)
 
-    model = NNmodel[:model]
+    model = NNmodel.model
 
-    x_min = NNmodel[:x_min]
-    x_max = NNmodel[:x_max]
-    y_min = NNmodel[:y_min]
-    y_max = NNmodel[:y_max]
+    x_min = NNmodel.x_min
+    x_max = NNmodel.x_max
+    y_min = NNmodel.y_min
+    y_max = NNmodel.y_max
 
     x = minmax_normalize(xunnorm, x_min, x_max)
     y = model(x)
@@ -246,7 +263,7 @@ function predict_model_from_coils(
     ffp::Vector{T},
     ecurrt::Vector{Float64},
     fcurrt::Vector{Float64},
-    NNmodel::Dict{Symbol,<:Any},
+    NNmodel::NeuralNetModel{Float64},
     green::GreenFunctionTables{Float64},
     basis_functions::BasisFunctions{Float64},
     basis_functions_1d::BasisFunctions1D{Float64},
@@ -264,8 +281,9 @@ function predict_model_from_coils(
     ffp_fit::Vector{T},
     ecurrt::Vector{Float64},
     fcurrt::Vector{Float64},
-    NNmodel::Dict{Symbol,<:Any},
-    green::GreenFunctionTables{Float64}, basis_functions::BasisFunctions{Float64},
+    NNmodel::NeuralNetModel{Float64},
+    green::GreenFunctionTables{Float64},
+    basis_functions::BasisFunctions{Float64},
     Ip_target::Float64=0.0,
     use_vacuumfield_green::Bool=false
 ) where {T<:Real}
@@ -277,11 +295,11 @@ function predict_model_from_coils(
         fcurrt
     )
 
-    model = NNmodel[:model]
-    x_min = NNmodel[:x_min]
-    x_max = NNmodel[:x_max]
-    y_min = NNmodel[:y_min]
-    y_max = NNmodel[:y_max]
+    model = NNmodel.model
+    x_min = NNmodel.x_min
+    x_max = NNmodel.x_max
+    y_min = NNmodel.y_min
+    y_max = NNmodel.y_max
 
     x = minmax_normalize(xunnorm, x_min, x_max)
     y = model(x)
@@ -341,7 +359,7 @@ function get_isinside(Rb, Zb, green)
     push!(_bnd, [Rb[1], Zb[1]])
     for (i, r) in enumerate(green.rgrid)
         for (j, z) in enumerate(green.zgrid)
-            is_inside[j, i] = inpolygon((r, z), _bnd) == 1
+            is_inside[i, j] = inpolygon((r, z), _bnd) == 1
         end
     end
     return is_inside
@@ -373,17 +391,17 @@ function get_Jt_fb(pp_fit::Vector{T},
         @inbounds for i in 1:nh
             r = rgrid[i]
             if is_inside[i, j] != 0  # Skip if outside
-                psin_val = psin_rz[j, i]
+                psin_val = psin_rz[i, j]
 
                 # Vectorized computation for pp
                 for ib in 1:npp
-                    Jt_pp[i, j] -= pp_fit[ib] * bf1d_itp.pp[ib](psin_val) * r * is_inside[i, j]
+                    Jt_pp[i, j] -= pp_fit[ib] * bf1d_itp.pp[ib](psin_val) * r 
                 end
 
                 # Vectorized computation for ffp
                 r_inv = inv(r)
                 for ib in 1:nffp
-                    Jt_ffp[i, j] -= ffp_fit[ib] * bf1d_itp.ffp[ib](psin_val) * r_inv * is_inside[i, j] / IMAS.mks.μ_0
+                    Jt_ffp[i, j] -= ffp_fit[ib] * bf1d_itp.ffp[ib](psin_val) * r_inv  / IMAS.mks.μ_0
                 end
             end
         end
@@ -447,28 +465,28 @@ function calc_pffprime2(psinrz::Matrix{Float64}, Jt::Matrix{Float64}, rgrid::Vec
     n = length(psinrz)
     A = zeros(npp + nffp, n)
     nw = nh = 129
-    nffp = 6
-    npp = 6
-    # Construct X matrix
+    nffp = 17
+    npp = 17
+    # Construct A matrix
     Threads.@threads for j in 1:nw
         @inbounds for i in 1:nh
-            r = rgrid[j]
-            ij = j*nw +i
+            r = rgrid[i]
+            ij = j*nw + i 
             if is_inside[i, j] != 0  # Skip if outside
-                psin_val = psinrz[j, i]
+                psin_val = psinrz[i, j]
 
                 # Vectorized computation for pp
                 for ib in 1:npp
-                    A[ib, ij] = bf1d_itp.pp[ib](psin_val) /r#/ r^2  #/ r#* r^2 
+                    A[ib, ij] = bf1d_itp.pp[ib](psin_val) * r  #/ r^2  #/ r#* r^2 
                 end
 
                 for ib in 1:nffp
-                    A[ib+npp, ij] = bf1d_itp.ffp[ib](psin_val) 
+                    A[ib+npp, ij] = bf1d_itp.ffp[ib](psin_val) / r
                 end
             end
         end
     end
-    #return A
+
     b = vec(Jt)
     # Solve least squares: x = argmin ||X'x - b||
     x = reg_solve(A', b, 1.0)

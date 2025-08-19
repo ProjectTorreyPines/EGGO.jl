@@ -8,7 +8,7 @@ function predict_psipla_free(shot::Int,
     fcurrt::Vector{T},
     ecurrt::Vector{T},
     ip::T,
-    NNmodel::Dict{Symbol,<:Any},
+    NNmodel::NeuralNetModel{T},
     green::GreenFunctionTables{T},
     basis_functions::BasisFunctions{T}) where {T<:Float64}
     nfsum = green.nfsum
@@ -35,7 +35,6 @@ function predict_psipla_free(shot::Int,
     elseif shot < 124400
         mask_mpi[[2, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 28, 29, 61, 68, 69, 70, 72, 74, 75, 76]] .= 0.0
     end
-
 
     mask_mpi = fwtmp2 .* mask_mpi
 
@@ -69,25 +68,16 @@ function predict_psipla_free(shot::Int,
         X[.!mask, 1] += A[.!mask, ipca] * y_lsq[ipca]
     end
 
-    model = NNmodel[:model]
-    x_min = NNmodel[:x_min]
-    x_max = NNmodel[:x_max]
-    y_min = NNmodel[:y_min]
-    y_max = NNmodel[:y_max]
-
     XNN = vcat(X, fcurrt, ecurrt)
-    x = EGGO.minmax_normalize(XNN, x_min, x_max)
-    y = model(x)
-    x = EGGO.EGGO.minmax_unnormalize(x, x_min, x_max)
-    y = EGGO.minmax_unnormalize(y, y_min, y_max)  # Convert back to original scale
+ 
+    y = predict_NN(XNN, NNmodel)
 
     # Correct Ip to match experimental Ip
-    IpNN = sum(basis_functions.Ip .* y)
+    IpNN = sum(basis_functions.Ip .* y[1:32,1])
     y .*= ip / IpNN
 
     return y[:, 1], XNN#-1*y_lsq
 end
-
 
 function predict_kinetic(y::Vector{T},
     r_tom::Vector{T},

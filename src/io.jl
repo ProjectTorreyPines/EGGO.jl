@@ -131,7 +131,8 @@ function get_greens_function_tables(model_name)
         raw[:ggridfc],
         raw[:gridec],
         ggridfc_itp,
-        gridec_itp
+        gridec_itp,
+        missing
     )
 end
 
@@ -168,10 +169,11 @@ function get_model(model_name)
     elseif model_name == :d3d_cakenn_free
         filename = dirname(@__DIR__) * "/models/model_cakenn_free.bson"
     end
-    NNmodel = Dict{Symbol,Any}()
+    NNmodel_raw = Dict{Symbol,Any}()
     for (field, value) in BSON.load(filename, @__MODULE__)[:NNmodel]
-        NNmodel[field] = value
+        NNmodel_raw[field] = value
     end
-    NNmodel[:model] = Flux.fmap(Flux.f64, NNmodel[:model]) # map to 64 bits
-    return NNmodel
+    NNmodel_raw[:model] = Flux.fmap(Flux.f64, NNmodel_raw[:model]) # map to 64 bits
+    return NeuralNetModel(NNmodel_raw[:model],NNmodel_raw[:y_min],NNmodel_raw[:y_max],
+                          NNmodel_raw[:x_min],NNmodel_raw[:x_max])
 end

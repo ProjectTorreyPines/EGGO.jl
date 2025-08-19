@@ -23,7 +23,6 @@ pend = 0.1
     basis_functions_1d, bf1d_itp = EGGO.get_basis_functions_1d(model_name)
     wall = EGGO.get_wall(model_name)
     NNmodel = EGGO.get_model(model_name)
-    model = NNmodel[:model]
     coils = nothing 
     Ip_target = 0.0
     use_vacuum_fields = false
