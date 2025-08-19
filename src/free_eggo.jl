@@ -1,5 +1,10 @@
 using StatsBase
 
+"""
+    predict_psipla_free(shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, ip, NNmodel, green, basis_functions)
+
+Predict the plasma poloidal flux distribution using a neural network in reconstruction mode
+"""
 function predict_psipla_free(shot::Int,
     expsi::Vector{T},
     fwtsi::Vector{T},
@@ -11,6 +16,7 @@ function predict_psipla_free(shot::Int,
     NNmodel::NeuralNetModel{T},
     green::GreenFunctionTables{T},
     basis_functions::BasisFunctions{T}) where {T<:Float64}
+
     nfsum = green.nfsum
     nesum = green.nesum
     nsilop = green.nsilop
@@ -76,9 +82,14 @@ function predict_psipla_free(shot::Int,
     IpNN = sum(basis_functions.Ip .* y[1:32,1])
     y .*= ip / IpNN
 
-    return y[:, 1], XNN#-1*y_lsq
+    return y[:, 1], XNN
 end
 
+"""
+    predict_kinetic(y, r_tom, z_tom, ne_tom, Te_tom, r_cer, z_cer, nc_cer, fcurrt, ecurrt, green, wall, basis_functions, bf1d_itp)
+
+Predict kinetic profile coefficients (electron density, electron temperature, and impurity density) from NN equilibrium outputs and diagnostics.
+"""
 function predict_kinetic(y::Vector{T},
     r_tom::Vector{T},
     z_tom::Vector{T},

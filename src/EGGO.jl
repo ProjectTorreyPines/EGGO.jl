@@ -16,6 +16,14 @@ include("structures.jl")
 include("io.jl")
 include("free_eggo.jl")
 
+
+"""
+    fit_ppffp(pp::Vector{T}, ffp::Vector{T}, basis_functions_1d::BasisFunctions1D{Float64}) 
+    fit_ppffp(pp::Vector{T}, ffp::Vector{T}, basis_functions_1d::BasisFunctions1D{Float64}, pp_index::Integer, ffp_index::Integer)
+
+Fit pressure (`pp`) and poloidal flux function derivative (`ffp`) profiles
+to a set of 1D basis functions using ADMM with L2 regularization.
+"""
 function fit_ppffp(pp::Vector{T}, ffp::Vector{T}, basis_functions_1d::BasisFunctions1D{Float64}) where {T<:Real}
     return fit_ppffp(pp, ffp, basis_functions_1d, length(basis_functions_1d.pp[:, 1]), length(basis_functions_1d.ffp[:, 1]))
 end
@@ -27,6 +35,13 @@ function fit_ppffp(pp::Vector{T}, ffp::Vector{T}, basis_functions_1d::BasisFunct
     xf = solve!(Sf, ffp)
     return xp, xf
 end
+
+"""
+    get_ΨaxisΨbndffppp(psirz, green, basis_functions, basis_functions_1d, bf1d_itp, wall, pp_fit, ffp_fit; Ip_target=0.0)
+
+Compute the magnetic axis, plasma boundary, and reconstructed pressure / `f f'` profiles
+from a given equilibrium flux distribution.
+"""
 
 function get_ΨaxisΨbndffppp(psirz::Matrix{T},
     green::GreenFunctionTables{Float64},
@@ -96,6 +111,15 @@ function get_ΨaxisΨbndffppp(psirz::Matrix{T},
     return Ψaxis, Raxis, Zaxis, Ψbnd, ffp, pp
 end
 
+
+"""
+    fill_eqt(eqt, psirz, green, wall, pp, ffp, Btcenter, Rcenter, pend, Ψbnd, Ψaxis, Raxis, Zaxis)
+        -> IMAS.equilibrium__time_slice
+
+Populate an IMAS equilibrium time slice with global quantities, 1D profiles, and 2D flux surfaces
+from reconstructed equilibrium data.
+"""
+
 function fill_eqt(eqt::IMAS.equilibrium__time_slice, psirz, green, wall, pp, ffp, Btcenter, Rcenter, pend, Ψbnd, Ψaxis, Raxis, Zaxis)
     eqt.global_quantities.vacuum_toroidal_field.r0 = Rcenter
     eqt.global_quantities.vacuum_toroidal_field.b0 = Btcenter
@@ -126,6 +150,12 @@ function fill_eqt(eqt::IMAS.equilibrium__time_slice, psirz, green, wall, pp, ffp
     return eqt
 end
 
+"""
+    minmax_normalize(x) )
+
+Apply row-wise min–max normalization to an array.
+"""
+
 function minmax_normalize(x)
     min_x = minimum(x; dims=2)
     max_x = maximum(x; dims=2)
@@ -133,16 +163,32 @@ function minmax_normalize(x)
     return x_norm, min_x, max_x
 end
 
+"""
+    minmax_normalize(x, min_x, max_x)
+
+Normalize an array using provided row-wise minimum and maximum values.
+"""
 function minmax_normalize(x, min_x, max_x)
     x_norm = (x .- min_x) ./ (max_x .- min_x .+ eps())  # Add eps() to avoid division by zero
     return x_norm
 end
 
+"""
+    minmax_unnormalize(x_norm, min_x, max_x)
+
+Reverse min–max normalization using provided row-wise minimum and maximum values.
+"""
 function minmax_unnormalize(x_norm, min_x, max_x)
     return x_norm .* (max_x .- min_x) .+ min_x
 end
 
-function predict_NN(xunnorm,NNmodel)
+
+"""
+    predict_NN(xunnorm::Vector{Float64}, NNmodel::NeuralNetModel)
+
+Predict output using a trained neural network model, handling input and output normalization.
+"""
+function predict_NN(xunnorm::Vector{Float64}, NNmodel::NeuralNetModel)
 
     model = NNmodel.model
 
@@ -159,6 +205,11 @@ function predict_NN(xunnorm,NNmodel)
     return y
 end
 
+"""
+    predict_model_from_boundary(Rb, Zb, pp, ffp, NNmodel, green, basis_functions, basis_functions_1d, coils; Ip_target=0.0, use_vacuumfield_green=false)
+    predict_model_from_boundary(Rb, Zb, pp_fit, ffp_fit, NNmodel, green, basis_functions, coils; Ip_target=0.0, use_vacuumfield_green=false)
+Fit pressure and f f' profiles and predict equilibrium using a neural network model from plasma boundary points.
+"""
 function predict_model_from_boundary(
     Rb::Vector{T},
     Zb::Vector{T},
@@ -207,18 +258,7 @@ function predict_model_from_boundary(
         pp_fit,
         ffp_fit)
 
-    model = NNmodel.model
-
-    x_min = NNmodel.x_min
-    x_max = NNmodel.x_max
-    y_min = NNmodel.y_min
-    y_max = NNmodel.y_max
-
-    x = minmax_normalize(xunnorm, x_min, x_max)
-    y = model(x)
-
-    x = minmax_unnormalize(x, x_min, x_max) # Convert back to original scale
-    y = minmax_unnormalize(y, y_min, y_max)  # Convert back to original scale
+    predict_NN(xunnorm, NNmodel)
 
     Jt, psirz, Ip = predict_model(y, green, basis_functions, Ip_target)
     psirz .+= calculate_psiext(Rb, Zb, psirz, green, coils, use_vacuumfield_green)
@@ -226,6 +266,14 @@ function predict_model_from_boundary(
     return Jt, psirz, Ip
 end
 
+
+"""
+    calculate_psiext(Rb_target, Zb_target, psipla, green, coils; use_vacuumfield_green=true)
+    calculate_psiext(fcurrt, ecurrt, green)
+
+Compute the external poloidal flux (`Ψ_ext`) on the grid given target boundary points
+and an existing plasma flux distribution, optionally using vacuum-field Green's functions.
+"""
 function calculate_psiext(Rb_target::Vector{T},
     Zb_target::Vector{T},
     psipla::Matrix{T},
@@ -258,6 +306,20 @@ function calculate_psiext(Rb_target::Vector{T},
     return psiext
 end
 
+function calculate_psiext(fcurrt::AbstractVector{T}, ecurrt::AbstractVector{T}, green::GreenFunctionTables{Float64}) where {T<:Real}
+    # Direct matrix-vector multiplications (16641,18) * (18,) + (16641,6) * (6,) = (16641,)
+    psiext_flat = green.ggridfc * fcurrt + green.gridec * ecurrt
+
+    # Reshape to target dimensions and negate
+    return -transpose(reshape(psiext_flat, green.nh, green.nw))
+end
+
+"""
+    predict_model_from_coils(pp, ffp, ecurrt, fcurrt, NNmodel, green, basis_functions, basis_functions_1d; Ip_target=0.0, use_vacuumfield_green=false)
+    predict_model_from_coils(pp_fit,ffp_fit, ecurrt,fcurrt,NNmodel,green,basis_functions; Ip_target=0.0, use_vacuumfield_green=false)
+
+Fit pressure and f f' profiles and predict equilibrium using a neural network model from coil currents.
+"""
 function predict_model_from_coils(
     pp::Vector{T},
     ffp::Vector{T},
@@ -295,16 +357,7 @@ function predict_model_from_coils(
         fcurrt
     )
 
-    model = NNmodel.model
-    x_min = NNmodel.x_min
-    x_max = NNmodel.x_max
-    y_min = NNmodel.y_min
-    y_max = NNmodel.y_max
-
-    x = minmax_normalize(xunnorm, x_min, x_max)
-    y = model(x)
-    x = minmax_unnormalize(x, x_min, x_max)
-    y = minmax_unnormalize(y, y_min, y_max)  # Convert back to original scale
+    predict_NN(xunnorm,NNmodel)
 
     nfsum = green.nfsum
     nesum = green.nesum
@@ -316,13 +369,11 @@ function predict_model_from_coils(
     return Jt, psirz, Ip
 end
 
-function calculate_psiext(fcurrt::AbstractVector{T}, ecurrt::AbstractVector{T}, green::GreenFunctionTables{Float64}) where {T<:Real}
-    # Direct matrix-vector multiplications (16641,18) * (18,) + (16641,6) * (6,) = (16641,)
-    psiext_flat = green.ggridfc * fcurrt + green.gridec * ecurrt
+"""
+    predict_model(y, green, basis_functions, Ip_target)
 
-    # Reshape to target dimensions and negate
-    return -transpose(reshape(psiext_flat, green.nh, green.nw))
-end
+Predict the toroidal current density and poloidal flux from neural network outputs and basis functions.
+"""
 
 function predict_model(y::Matrix{T},
     green::GreenFunctionTables{Float64},
@@ -353,6 +404,12 @@ function predict_model(y::Matrix{T},
     return Jt, Matrix(transpose(psipla)), Ip
 end
 
+"""
+    get_isinside(Rb, Zb, green)
+
+Compute a mask indicating which points on the `(R, Z)` grid lie inside a closed boundary.
+
+"""
 function get_isinside(Rb, Zb, green)
     is_inside = zeros(green.nw, green.nh)
     _bnd = [[Rb[k], Zb[k]] for k in eachindex(Rb)]
@@ -365,6 +422,13 @@ function get_isinside(Rb, Zb, green)
     return is_inside
 end
 
+
+"""
+    get_Jt_fb(pp_fit, ffp_fit, psin_rz, basis_functions_1d, bf1d_itp, green, is_inside)
+
+Compute the toroidal current contributions from pressure (`pp`) and poloidal current (`ffp`) profiles
+on a `(R, Z)` grid inside the plasma boundary.
+"""
 function get_Jt_fb(pp_fit::Vector{T},
     ffp_fit::Vector{T},
     psin_rz::Matrix{T},
@@ -457,7 +521,12 @@ function fit_pp_ffp(pp_fit::Vector{T},
 end
 
 
+"""
+    calc_pffprime2(psinrz, Jt, rgrid, is_inside, bf1d_itp)
 
+Compute the coefficients of pressure (`pp`) and poloidal current (`ff'`) basis functions
+from a toroidal current distribution.
+"""
 function calc_pffprime2(psinrz::Matrix{Float64}, Jt::Matrix{Float64}, rgrid::Vector{Float64}, is_inside::Matrix{Float64},bf1d_itp:: BasisFunctions1Dinterp)
 
     npp = length( bf1d_itp.pp)
@@ -477,7 +546,7 @@ function calc_pffprime2(psinrz::Matrix{Float64}, Jt::Matrix{Float64}, rgrid::Vec
 
                 # Vectorized computation for pp
                 for ib in 1:npp
-                    A[ib, ij] = bf1d_itp.pp[ib](psin_val) * r  #/ r^2  #/ r#* r^2 
+                    A[ib, ij] = bf1d_itp.pp[ib](psin_val) * r 
                 end
 
                 for ib in 1:nffp
@@ -494,50 +563,11 @@ function calc_pffprime2(psinrz::Matrix{Float64}, Jt::Matrix{Float64}, rgrid::Vec
     return x[1:npp],x[npp+1:end]
 end
 
-
 """
-function predict_coil_currents(Rb::Vector{T},Zb::Vector{T},green::GreenFunctionTables{Float64},
-psipla::Interpolations.AbstractInterpolation) where {T<:Real}
-    nesum = green.nesum
-    nfsum = green.nfsum
-    n = length(Rb)
-    npoints = n * (n - 1) ÷ 2
+    predict_coil_currents(Rb, Zb, green, psipla)
 
-    A = zeros(nfsum+nesum, npoints)
-    j = 1
-    @time for (j1,(R1,Z1)) in enumerate(zip(Rb,Zb))
-        for (R2,Z2) in zip(Rb[j1+1:end],Zb[j1+1:end])
-            for i in 1:nesum
-                A[i, j] = green.gridec_itp[i](R1,Z1) -(green.gridec_itp[i](R2,Z2))
-            end
-            j+=1
-        end
-    end
-    j = 1
-    @time for (j1,(R1,Z1)) in enumerate(zip(Rb,Zb))
-        for (R2,Z2) in zip(Rb[j1+1:end],Zb[j1+1:end])
-            for i in 1:nfsum
-                A[nesum+i, j] = green.ggridfc_itp[i](R1,Z1) - (green.ggridfc_itp[i](R2,Z2))
-            end
-            j+=1
-        end
-    end
-
-    b= zeros(npoints)
-    j = 1
-    @time for (j1,(R1,Z1)) in enumerate(zip(Rb,Zb))
-        for (R2,Z2) in zip(Rb[j1+1:end],Zb[j1+1:end])
-            b[j] = (psipla(R1,Z1)- psipla(R2,Z2))
-            j+=1
-        end 
-    end
-
-    @time x = reg_solve(A', b, 1e-16)
-
-    return x[1:nesum],x[nesum+1:end]
-end
+Estimate coil currents required to reproduce a given plasma flux distribution.
 """
-
 function predict_coil_currents(Rb::Vector{T}, Zb::Vector{T}, green::GreenFunctionTables{Float64}, psipla::Interpolations.AbstractInterpolation) where {T<:Real}
     nesum = green.nesum
     nfsum = green.nfsum
@@ -583,6 +613,11 @@ function predict_coil_currents(Rb::Vector{T}, Zb::Vector{T}, green::GreenFunctio
     return x[1:nesum], x[nesum+1:end]
 end
 
+"""
+    reg_solve(A, b, λ)
+
+Solve a linear system with L2 (Tikhonov) regularization.
+"""
 function reg_solve(A::AbstractArray{T}, b::AbstractArray{T}, λ::T) where {T<:Real}
     return (A' * A + λ * I) \ A' * b
 end

@@ -3,7 +3,12 @@ import BSON
 import HDF5
 
 
+"""
+    get_basis_functions(model_name::Symbol)
 
+Load basis functions for plasma current, magnetic probes, and flux loops
+associated with a given equilibrium model.
+"""
 function get_basis_functions(model_name)
     if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils
         filename = dirname(@__DIR__) * "/models/basis_functions.h5"
@@ -22,7 +27,12 @@ function get_basis_functions(model_name)
     )
 end
 
-function get_basis_functions_1d(model_name)
+"""
+    get_basis_functions_1d(model_name::Symbol)
+
+Load 1D basis functions (and their interpolants) for a given equilibrium model.
+"""
+function get_basis_functions_1d(model_name::Symbol)
     if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils
         filename = dirname(@__DIR__) * "/models/basis_functions_1d.h5"
     elseif model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
@@ -80,6 +90,8 @@ function get_basis_functions_1d(model_name)
     BasisFunctions1Dinterp(raw_itp[:pp], raw_itp[:ffp], raw_itp[:ne], raw_itp[:Te], raw_itp[:nc])
 end
 
+
+
 function get_greens_function_tables(model_name)
     if (
         model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
@@ -136,7 +148,13 @@ function get_greens_function_tables(model_name)
     )
 end
 
-function get_wall(model_name)
+
+"""
+    get_wall(model_name::Symbol)
+
+Load the machine wall definition associated with a given model.
+"""
+function get_wall(model_name::Symbol)
     if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
        model_name == :d3d_cakenn_free
         filename = dirname(@__DIR__) * "/models/wall.h5"
@@ -145,7 +163,13 @@ function get_wall(model_name)
     return Wall(raw[:rlim], raw[:zlim])
 end
 
-function read_hdf5_auto(filename)
+
+"""
+    read_hdf5_auto(filename::String) 
+
+Read an HDF5 file into a dictionary with symbol keys.
+"""
+function read_hdf5_auto(filename::String)
     data_dict = Dict{Symbol,Any}()
     HDF5.h5open(filename, "r") do file
         for key in keys(file)
@@ -157,7 +181,13 @@ function read_hdf5_auto(filename)
     return data_dict
 end
 
-function get_model(model_name)
+
+"""
+    get_model(model_name::Symbol)
+
+Load a pretrained neural network equilibrium model by name.
+"""
+function get_model(model_name::Symbol)
     if model_name == :d3d_efit01
         filename = dirname(@__DIR__) * "/models/model_efit01.bson"
     elseif model_name == :d3d_efit01efit02cake02
