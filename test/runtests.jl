@@ -54,8 +54,6 @@ end
     wall = EGGO.get_wall(model_name)
     NNmodel = EGGO.get_model(model_name)
 
-    model = NNmodel[:model]
-
     pp_fit, ffp_fit = EGGO.fit_ppffp(pp_target, ffp_target, basis_functions_1d)
 
     Jt, psirz, Ip = EGGO.predict_model_from_coils(pp_fit, ffp_fit, ecurrt_target,fcurrt_target, NNmodel, green, basis_functions)
@@ -87,7 +85,6 @@ end
     basis_functions_1d, bf1d_itp = EGGO.get_basis_functions_1d(model_name)
     wall = EGGO.get_wall(model_name)
     NNmodel = EGGO.get_model(model_name)
-    model = NNmodel[:model]
     coils = nothing 
     Ip_target = 0.0
     use_vacuum_fields = false
@@ -120,13 +117,10 @@ end
     wall = EGGO.get_wall(model_name)
     NNmodel = EGGO.get_model(model_name)
 
-    model = NNmodel[:model]
-
     pp_fit, ffp_fit = EGGO.fit_ppffp(pp_target, ffp_target, basis_functions_1d)
 
     Jt, psirz, Ip = EGGO.predict_model_from_coils(pp_fit, ffp_fit, ecurrt_target,fcurrt_target, NNmodel, green, basis_functions)
     Ψaxis, Raxis, Zaxis, Ψbnd, ffp,pp = EGGO.get_ΨaxisΨbndffppp(psirz, green, basis_functions,basis_functions_1d, bf1d_itp, wall, pp_fit, ffp_fit)
-
 
     # fill out eqt quantities
     dd = IMAS.dd()

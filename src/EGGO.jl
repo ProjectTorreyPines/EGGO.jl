@@ -184,11 +184,11 @@ end
 
 
 """
-    predict_NN(xunnorm::Vector{Float64}, NNmodel::NeuralNetModel)
+    predict_NN(xunnorm, NNmodel:)
 
 Predict output using a trained neural network model, handling input and output normalization.
 """
-function predict_NN(xunnorm::Vector{Float64}, NNmodel::NeuralNetModel)
+function predict_NN(xunnorm::AbstractArray{Float64}, NNmodel::NeuralNetModel)
 
     model = NNmodel.model
 
@@ -258,7 +258,7 @@ function predict_model_from_boundary(
         pp_fit,
         ffp_fit)
 
-    predict_NN(xunnorm, NNmodel)
+    y= predict_NN(xunnorm, NNmodel)
 
     Jt, psirz, Ip = predict_model(y, green, basis_functions, Ip_target)
     psirz .+= calculate_psiext(Rb, Zb, psirz, green, coils, use_vacuumfield_green)
@@ -357,13 +357,8 @@ function predict_model_from_coils(
         fcurrt
     )
 
-    predict_NN(xunnorm,NNmodel)
+    y = predict_NN(xunnorm,NNmodel)
 
-    nfsum = green.nfsum
-    nesum = green.nesum
-
-    fcurrt = @views x[end-nfsum+1:end]
-    ecurrt = @views x[end-nfsum-nesum+1:end-nfsum]
     Jt, psirz, Ip = predict_model(y, green, basis_functions, Ip_target)
     psirz .+= calculate_psiext(fcurrt, ecurrt, green)
     return Jt, psirz, Ip
