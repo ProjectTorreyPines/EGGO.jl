@@ -323,7 +323,7 @@ function predict_from_dd(dd::IMAS.dd{Float64}, t::Float64,
     y1d = model(x)
     x = EGGO.minmax_unnormalize(x, x_min, x_max)
     y1d = EGGO.minmax_unnormalize(y1d, y_min, y_max)  # Convert back to original scale
-    npca1d = 7
+    npca1d = length(NNmodel1d.y_max) ÷ 5
     ne_fit = y1d[1:npca1d, 1]
     Te_fit = y1d[npca1d+1:2*npca1d, 1]
     nc_fit = y1d[2*npca1d+1:3*npca1d, 1]
