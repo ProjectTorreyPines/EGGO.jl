@@ -98,6 +98,7 @@ function get_ΨaxisΨbndffppp(psirz::Matrix{T},
     else
         ffp_scale = 1.0
     end
+
     # pp' and ff' that were actually used in EGGO
     pp = zero(basis_functions_1d.pp[1, :])
     for k in eachindex(pp_fit)
@@ -208,6 +209,7 @@ end
 """
     predict_model_from_boundary(Rb, Zb, pp, ffp, NNmodel, green, basis_functions, basis_functions_1d, coils; Ip_target=0.0, use_vacuumfield_green=false)
     predict_model_from_boundary(Rb, Zb, pp_fit, ffp_fit, NNmodel, green, basis_functions, coils; Ip_target=0.0, use_vacuumfield_green=false)
+
 Fit pressure and f f' profiles and predict equilibrium using a neural network model from plasma boundary points.
 """
 function predict_model_from_boundary(
@@ -258,7 +260,7 @@ function predict_model_from_boundary(
         pp_fit,
         ffp_fit)
 
-    y= predict_NN(xunnorm, NNmodel)
+    y = predict_NN(xunnorm, NNmodel)
 
     Jt, psirz, Ip = predict_model(y, green, basis_functions, Ip_target)
     psirz .+= calculate_psiext(Rb, Zb, psirz, green, coils, use_vacuumfield_green)
@@ -357,7 +359,7 @@ function predict_model_from_coils(
         fcurrt
     )
 
-    y = predict_NN(xunnorm,NNmodel)
+    y = predict_NN(xunnorm, NNmodel)
 
     Jt, psirz, Ip = predict_model(y, green, basis_functions, Ip_target)
     psirz .+= calculate_psiext(fcurrt, ecurrt, green)
@@ -403,7 +405,6 @@ end
     get_isinside(Rb, Zb, green)
 
 Compute a mask indicating which points on the `(R, Z)` grid lie inside a closed boundary.
-
 """
 function get_isinside(Rb, Zb, green)
     is_inside = zeros(green.nw, green.nh)
@@ -454,13 +455,13 @@ function get_Jt_fb(pp_fit::Vector{T},
 
                 # Vectorized computation for pp
                 for ib in 1:npp
-                    Jt_pp[i, j] -= pp_fit[ib] * bf1d_itp.pp[ib](psin_val) * r 
+                    Jt_pp[i, j] -= pp_fit[ib] * bf1d_itp.pp[ib](psin_val) * r
                 end
 
                 # Vectorized computation for ffp
                 r_inv = inv(r)
                 for ib in 1:nffp
-                    Jt_ffp[i, j] -= ffp_fit[ib] * bf1d_itp.ffp[ib](psin_val) * r_inv  / IMAS.mks.μ_0
+                    Jt_ffp[i, j] -= ffp_fit[ib] * bf1d_itp.ffp[ib](psin_val) * r_inv / IMAS.mks.μ_0
                 end
             end
         end
@@ -522,10 +523,10 @@ end
 Compute the coefficients of pressure (`pp`) and poloidal current (`ff'`) basis functions
 from a toroidal current distribution.
 """
-function calc_pffprime2(psinrz::Matrix{Float64}, Jt::Matrix{Float64}, rgrid::Vector{Float64}, is_inside::Matrix{Float64},bf1d_itp:: BasisFunctions1Dinterp)
+function calc_pffprime2(psinrz::Matrix{Float64}, Jt::Matrix{Float64}, rgrid::Vector{Float64}, is_inside::Matrix{Float64}, bf1d_itp::BasisFunctions1Dinterp)
 
-    npp = length( bf1d_itp.pp)
-    nffp = length( bf1d_itp.ffp)
+    npp = length(bf1d_itp.pp)
+    nffp = length(bf1d_itp.ffp)
     n = length(psinrz)
     A = zeros(npp + nffp, n)
     nw = nh = 129
@@ -535,13 +536,13 @@ function calc_pffprime2(psinrz::Matrix{Float64}, Jt::Matrix{Float64}, rgrid::Vec
     Threads.@threads for j in 1:nw
         @inbounds for i in 1:nh
             r = rgrid[i]
-            ij = j*nw + i 
+            ij = j * nw + i
             if is_inside[i, j] != 0  # Skip if outside
                 psin_val = psinrz[i, j]
 
                 # Vectorized computation for pp
                 for ib in 1:npp
-                    A[ib, ij] = bf1d_itp.pp[ib](psin_val) * r 
+                    A[ib, ij] = bf1d_itp.pp[ib](psin_val) * r
                 end
 
                 for ib in 1:nffp
@@ -555,7 +556,7 @@ function calc_pffprime2(psinrz::Matrix{Float64}, Jt::Matrix{Float64}, rgrid::Vec
     # Solve least squares: x = argmin ||X'x - b||
     x = reg_solve(A', b, 1.0)
 
-    return x[1:npp],x[npp+1:end]
+    return x[1:npp], x[npp+1:end]
 end
 
 """

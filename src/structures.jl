@@ -21,6 +21,8 @@ struct BasisFunctions1D{T<:Float64}
     ne::Union{Matrix{T},Missing}
     Te::Union{Matrix{T},Missing}
     nc::Union{Matrix{T},Missing}
+    Ti::Union{Matrix{T},Missing}
+    Vt::Union{Matrix{T},Missing}
 end
 
 struct BasisFunctions1Dinterp
@@ -29,6 +31,8 @@ struct BasisFunctions1Dinterp
     ne::Union{Vector{Any},Missing}
     Te::Union{Vector{Any},Missing}
     nc::Union{Vector{Any},Missing}
+    Ti::Union{Vector{Any},Missing}
+    Vt::Union{Vector{Any},Missing}
 end
 
 mutable struct GreenFunctionTables{T<:Float64}
@@ -55,7 +59,7 @@ mutable struct GreenFunctionTables{T<:Float64}
     gridec::Matrix{T}
     ggridfc_itp::Vector{Any}
     gridec_itp::Vector{Any}
-    ggridfc_vf::Union{Missing,Array{Float64, 3}}
+    ggridfc_vf::Union{Missing,Array{Float64,3}}
 end
 
 struct Wall

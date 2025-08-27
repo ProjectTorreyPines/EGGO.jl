@@ -1,4 +1,5 @@
 using StatsBase
+using IMAS
 
 """
     predict_psipla_free(shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, ip, NNmodel, green, basis_functions)
@@ -75,11 +76,11 @@ function predict_psipla_free(shot::Int,
     end
 
     XNN = vcat(X, fcurrt, ecurrt)
- 
+
     y = predict_NN(XNN, NNmodel)
 
     # Correct Ip to match experimental Ip
-    IpNN = sum(basis_functions.Ip .* y[1:32,1])
+    IpNN = sum(basis_functions.Ip .* y[1:32, 1])
     y .*= ip / IpNN
 
     return y[:, 1], XNN
@@ -208,4 +209,167 @@ function predict_kinetic(y::Vector{T},
     c_nc = EGGO.reg_solve(Anc, nc_cer, 1.0)
 
     return c_ne, c_Te, c_nc
+end
+
+function fill_cp1d(cp1d, ne, Te, nc, Ti, Vt, rho, psi)
+    cp1d.grid.rho_tor_norm = rho
+    cp1d.grid.psi = psi
+    cp1d.electrons.density_thermal = ne
+    cp1d.electrons.temperature = Te
+    cp1d.electrons.density_thermal = ne
+    resize!(cp1d.ion, 2)
+    resize!(cp1d.ion[1].element, 1)
+    cp1d.ion[1].element[1].a = 2.0
+    cp1d.ion[1].element[1].z_n = 1.0
+    cp1d.ion[1].label = "D"
+
+    resize!(cp1d.ion[2].element, 1)
+    cp1d.ion[2].element[1].a = 12.0
+    cp1d.ion[2].element[1].z_n = 6.0
+    cp1d.ion[2].label = "C"
+
+    cp1d.ion[1].temperature = Ti
+    cp1d.ion[2].temperature = Ti
+    cp1d.ion[1].density_thermal = ne - 6.0 * nc
+    cp1d.ion[2].density_thermal = nc
+    return cp1d.ion[2].rotation_frequency_tor = Vt
+end
+
+function predict_from_dd(dd::IMAS.dd{Float64}, t::Float64,
+    NNmodel::NeuralNetModel,
+    NNmodel1D::NeuralNetModel,
+    green::GreenFunctionTables{Float64},
+    wall::Wall,
+    basis_functions::BasisFunctions{Float64},
+    basis_functions_1d::BasisFunctions1D{Float64})
+    dd.global_time = t
+
+    nfsum = green.nfsum
+    nesum = green.nesum
+    nsilop = green.nsilop
+    magpr2 = green.magpr2
+    nw = green.nw
+    nh = green.nh
+
+    expsi = zeros(nsilop)
+    fwtsi = ones(nsilop)
+    for (ifloop, floop) in enumerate(dd.magnetics.flux_loop)
+        if floop.flux.validity == -2
+            fwtsi[ifloop] = 0.0
+        end
+        expsi[ifloop] = -1 * (@ddtime floop.flux.data) / 2 / pi
+    end
+    expsi[2:end] .-= expsi[1]
+
+    siref = deepcopy(expsi[1])
+
+    expmp2 = zeros(magpr2)
+    fwtmp2 = ones(magpr2)
+    for (ibprobe, bprobe) in enumerate(dd.magnetics.b_field_pol_probe)
+        if bprobe.field.validity == -2
+            fwtmp2[ibprobe] = 0.0
+        end
+        expmp2[ibprobe] = float(@ddtime bprobe.field.data)
+    end
+
+    currents = []
+    turns = []
+    for coil in dd.pf_active.coil
+        push!(currents, (@ddtime coil.current.data))
+        push!(turns, (@ddtime coil.element[1].turns_with_sign))
+    end
+
+    ecurrt = currents[1:6] .* turns[1:6]
+    fcurrt = currents[7:end] .* turns[7:end]
+    Ip = dd.equilibrium.time_slice[].global_quantities.ip
+
+    shot = dd.dataset_description.data_entry.pulse
+    y_psi, XNN = EGGO.predict_psipla_free(shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip, NNmodel, green, basis_functions)
+    #@time y_ne, y_Te, y_nc = EGGO.predict_kinetic(y_psi, r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,fcurrt,ecurrt,green,wall,basis_functions,bf1d_itp)
+
+    psipla = zeros(Float64, 129, 129)
+    Jt = zeros(Float64, 129, 129)
+    Ip1 = zeros(Float64, 32)
+    # Vectorized operations for basis function combination
+    @views for ipca in 1:32
+        psipla .+= y_psi[ipca] .* basis_functions.psi[:, :, ipca]
+        Jt .+= y_psi[ipca] .* basis_functions.Jt[:, :, ipca]
+    end
+    psiext = EGGO.calculate_psiext(fcurrt, ecurrt, green)
+    psi = psipla .+ psiext
+
+    # Create ranges once
+    r = range(green.rgrid[1], green.rgrid[end]; length=length(green.rgrid))
+    z = range(green.zgrid[1], green.zgrid[end]; length=length(green.zgrid))
+    rwall = Float64.(wall.rlim)
+    zwall = Float64.(wall.zlim)
+    PSI_itp = Interpolations.scale(Interpolations.interpolate(psi, Interpolations.BSpline(Interpolations.Cubic(Interpolations.Line(Interpolations.OnGrid())))), r, z)
+    Raxis, Zaxis = IMAS.find_magnetic_axis(r, z, PSI_itp, 1; rguess=r[65], zguess=z[65])
+    psiaxis = PSI_itp(Raxis, Zaxis)
+    axis2bnd = :increasing
+    empty_r = Float64[]
+    empty_z = Float64[]
+    psibnd =
+        IMAS.find_psi_boundary(r, z, psi, psiaxis, axis2bnd, Raxis, Zaxis, rwall, zwall, empty_r, empty_z;
+            PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
+
+    model = NNmodel1D.model
+    x_min = NNmodel1D.x_min
+    x_max = NNmodel1D.x_max
+    y_min = NNmodel1D.y_min
+    y_max = NNmodel1D.y_max
+    XNN[end-24] *= 1e6
+    x = EGGO.minmax_normalize(XNN, x_min, x_max)
+    y1d = model(x)
+    x = EGGO.minmax_unnormalize(x, x_min, x_max)
+    y1d = EGGO.minmax_unnormalize(y1d, y_min, y_max)  # Convert back to original scale
+    npca1d = 7
+    ne_fit = y1d[1:npca1d, 1]
+    Te_fit = y1d[npca1d+1:2*npca1d, 1]
+    nc_fit = y1d[2*npca1d+1:3*npca1d, 1]
+    Ti_fit = y1d[3*npca1d+1:4*npca1d, 1]
+    Vt_fit = y1d[4*npca1d+1:5*npca1d, 1]
+
+    pp_fit = deepcopy(y_psi[32+1:32+npca1d])
+    ffp_fit = deepcopy(y_psi[32+npca1d+1:32+npca1d*2])
+
+    pp = zero(basis_functions_1d.pp[1, :])
+    for k in eachindex(pp_fit)
+        pp .+= pp_fit[k] .* basis_functions_1d.pp[k, :]
+    end
+
+    ffp = zero(basis_functions_1d.ffp[1, :])
+    for k in eachindex(ffp_fit)
+        ffp .+= ffp_fit[k] .* basis_functions_1d.ffp[k, :]
+    end
+
+    ne = zero(basis_functions_1d.ne[1, :])
+    for k in eachindex(ne_fit)
+        ne .+= ne_fit[k] .* basis_functions_1d.ne[k, :]
+    end
+
+    Te = zero(basis_functions_1d.ne[1, :])
+    for k in eachindex(Te_fit)
+        Te .+= Te_fit[k] .* basis_functions_1d.Te[k, :]
+    end
+
+    nc = zero(basis_functions_1d.nc[1, :])
+    for k in eachindex(nc_fit)
+        nc .+= nc_fit[k] .* basis_functions_1d.nc[k, :]
+    end
+
+    Ti = zero(basis_functions_1d.Ti[1, :])
+    for k in eachindex(Ti_fit)
+        Ti .+= Ti_fit[k] .* basis_functions_1d.Ti[k, :]
+    end
+
+    Vt = zero(basis_functions_1d.Vt[1, :])
+    for k in eachindex(Vt_fit)
+        Vt .+= Vt_fit[k] .* basis_functions_1d.Vt[k, :]
+    end
+
+    psi1d = LinRange(psiaxis, psibnd, nw)
+    pres = IMAS.cumtrapz(psi1d, pp)
+    pres .-= pres[end]
+    return psi, pp_fit, ffp_fit, ne, Te, nc, Ti, Vt
 end
