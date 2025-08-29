@@ -15,6 +15,7 @@ function predict_psipla_free(shot::Int,
     ecurrt::Vector{T},
     ip::T,
     NNmodel::NeuralNetModel{T},
+    NNmodel1D::NeuralNetModel{T},
     green::GreenFunctionTables{T},
     basis_functions::BasisFunctions{T}) where {T<:Float64}
 
@@ -62,7 +63,6 @@ function predict_psipla_free(shot::Int,
     # Build matrices for regression
 
     A = vcat(basis_functions.psi_loop, basis_functions.bp_probe, -reshape(basis_functions.Ip, 1, 32) ./ 1e6)
-
     mask_psi = fwtsi .* expsi .!= 0.0
     mask_bp = mask_mpi .* expmp2 .!= 0.0
     mask_ip = trues(1)  # Always true
@@ -82,8 +82,21 @@ function predict_psipla_free(shot::Int,
     # Correct Ip to match experimental Ip
     IpNN = sum(basis_functions.Ip .* y[1:32, 1])
     y .*= ip / IpNN
+    #y_lsq.*= ip / IpNN
+    #y = vcat(-1y_lsq,zeros(24),y[33:end])
 
-    return y[:, 1], XNN
+    model1d = NNmodel1D.model
+    x_min = NNmodel1D.x_min
+    x_max = NNmodel1D.x_max
+    y_min = NNmodel1D.y_min
+    y_max = NNmodel1D.y_max
+    XNN[end-24] *= 1e6
+    x = EGGO.minmax_normalize(XNN, x_min, x_max)
+    y1d = model1d(x)
+    x = EGGO.minmax_unnormalize(x, x_min, x_max)
+    y1d = EGGO.minmax_unnormalize(y1d, y_min, y_max)  # Convert back to original scale
+
+    return y,y1d
 end
 
 """
@@ -284,8 +297,9 @@ function predict_from_dd(dd::IMAS.dd{Float64}, t::Float64,
     Ip = dd.equilibrium.time_slice[].global_quantities.ip
 
     shot = dd.dataset_description.data_entry.pulse
-    y_psi, XNN = EGGO.predict_psipla_free(shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip, NNmodel, green, basis_functions)
+    y_psi, y1d = EGGO.predict_psipla_free(shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip, NNmodel,NNmodel1D, green, basis_functions)
     #@time y_ne, y_Te, y_nc = EGGO.predict_kinetic(y_psi, r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,fcurrt,ecurrt,green,wall,basis_functions,bf1d_itp)
+
 
     psipla = zeros(Float64, 129, 129)
     Jt = zeros(Float64, 129, 129)
@@ -313,16 +327,7 @@ function predict_from_dd(dd::IMAS.dd{Float64}, t::Float64,
         IMAS.find_psi_boundary(r, z, psi, psiaxis, axis2bnd, Raxis, Zaxis, rwall, zwall, empty_r, empty_z;
             PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
 
-    model = NNmodel1D.model
-    x_min = NNmodel1D.x_min
-    x_max = NNmodel1D.x_max
-    y_min = NNmodel1D.y_min
-    y_max = NNmodel1D.y_max
-    XNN[end-24] *= 1e6
-    x = EGGO.minmax_normalize(XNN, x_min, x_max)
-    y1d = model(x)
-    x = EGGO.minmax_unnormalize(x, x_min, x_max)
-    y1d = EGGO.minmax_unnormalize(y1d, y_min, y_max)  # Convert back to original scale
+
     npca1d = length(NNmodel1D.y_max) ÷ 5
     ne_fit = y1d[1:npca1d, 1]
     Te_fit = y1d[npca1d+1:2*npca1d, 1]
