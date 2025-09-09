@@ -378,3 +378,61 @@ function predict_from_dd(dd::IMAS.dd{Float64}, t::Float64,
     pres .-= pres[end]
     return psi, pp_fit, ffp_fit, ne, Te, nc, Ti, Vt
 end
+
+function calculate_boundary(y::Matrix{T},
+    fcurrt::Vector{T},
+    ecurrt::Vector{T},
+    green::GreenFunctionTables{T},
+    basis_functions::BasisFunctions{T},
+    wall::Wall
+) where {T<:Float64}
+
+    nw = green.nw
+    nh = green.nh
+    npca = length(basis_functions.Ip)
+
+    print(size(basis_functions.psi))
+    psipla = zeros(T, (nw, nh))
+    for ipca in 1:npca
+        @views psipla .+= y[ipca] .* (basis_functions.psi[:, :, ipca])
+    end
+
+    psiext = calculate_psiext(fcurrt, ecurrt, green)
+
+    psirz = psipla .+ psiext
+
+    r = range(green.rgrid[1], green.rgrid[end], length(green.rgrid))
+    z = range(green.zgrid[1], green.zgrid[end], length(green.zgrid))
+
+    rguess = green.rgrid[(green.nw+1)÷2]
+    zguess = green.zgrid[(green.nw+1)÷2]
+
+    PSI_itp = Interpolations.cubic_spline_interpolation((r, z), psirz; extrapolation_bc=Interpolations.Line())
+    Raxis, Zaxis = IMAS.find_magnetic_axis(r, z, PSI_itp, 1; rguess=rguess, zguess=zguess)
+    Ψaxis = PSI_itp(Raxis, Zaxis)
+    axis2bnd = :increasing
+    Ψbnd =
+        IMAS.find_psi_boundary(
+            r,
+            z,
+            psirz,
+            Ψaxis,
+            axis2bnd,
+            Raxis,
+            Zaxis,
+            wall.rlim,
+            wall.zlim;
+            PSI_interpolant=PSI_itp,
+            raise_error_on_not_open=false,
+            raise_error_on_not_closed=false
+        ).last_closed
+
+    dpsi = (Ψbnd - Ψaxis) / (green.nw - 1)
+    psi1d = range(Ψaxis, Ψbnd, green.nw)
+    dpsi = psi1d[2] .- psi1d[1]
+
+    lcfs = IMAS.trace_simple_surfaces(psi1d[end-1:end], green.rgrid, green.zgrid, psirz, PSI_itp, Raxis, Zaxis, wall.rlim, wall.zlim)[end]
+    Rb, Zb = lcfs.r, lcfs.z
+
+    return Rb,Zb
+end
