@@ -96,7 +96,7 @@ function predict_psipla_free(shot::Int,
     x = EGGO.minmax_unnormalize(x, x_min, x_max)
     y1d = EGGO.minmax_unnormalize(y1d, y_min, y_max)  # Convert back to original scale
 
-    return y,y1d
+    return y, y1d
 end
 
 """
@@ -294,13 +294,22 @@ function predict_from_dd(dd::IMAS.dd{Float64}, t::Float64,
 
     ecurrt = currents[1:6] .* turns[1:6]
     fcurrt = currents[7:end] .* turns[7:end]
-    Ip = dd.equilibrium.time_slice[].global_quantities.ip
+    Ip = @ddtime dd.pulse_schedule.flux_control.i_plasma.reference#dd.pulse_schedule.dd.equilibrium.time_slice[].global_quantities.ip
 
     shot = dd.dataset_description.data_entry.pulse
-    y_psi, y1d = EGGO.predict_psipla_free(shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip, NNmodel,NNmodel1D, green, basis_functions)
-    #@time y_ne, y_Te, y_nc = EGGO.predict_kinetic(y_psi, r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,fcurrt,ecurrt,green,wall,basis_functions,bf1d_itp)
+    y_psi, y1d = EGGO.predict_psipla_free(shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip, NNmodel, NNmodel1D, green, basis_functions)
+    return y_psi, y1d, fcurrt, ecurrt
 
+end
 
+function fit_profiles(y_psi::Matrix{T},
+    y1d::Matrix{T},
+    fcurrt::Vector{T},
+    ecurrt::Vector{T},
+    green::GreenFunctionTables{T},
+    basis_functions::BasisFunctions{T},
+    basis_functions_1d::BasisFunctions1D{T},
+    wall::Wall) where {T<:Float64}
     psipla = zeros(Float64, 129, 129)
     Jt = zeros(Float64, 129, 129)
     Ip1 = zeros(Float64, 32)
@@ -312,23 +321,7 @@ function predict_from_dd(dd::IMAS.dd{Float64}, t::Float64,
     psiext = EGGO.calculate_psiext(fcurrt, ecurrt, green)
     psi = psipla .+ psiext
 
-    # Create ranges once
-    r = range(green.rgrid[1], green.rgrid[end]; length=length(green.rgrid))
-    z = range(green.zgrid[1], green.zgrid[end]; length=length(green.zgrid))
-    rwall = Float64.(wall.rlim)
-    zwall = Float64.(wall.zlim)
-    PSI_itp = Interpolations.scale(Interpolations.interpolate(psi, Interpolations.BSpline(Interpolations.Cubic(Interpolations.Line(Interpolations.OnGrid())))), r, z)
-    Raxis, Zaxis = IMAS.find_magnetic_axis(r, z, PSI_itp, 1; rguess=r[65], zguess=z[65])
-    psiaxis = PSI_itp(Raxis, Zaxis)
-    axis2bnd = :increasing
-    empty_r = Float64[]
-    empty_z = Float64[]
-    psibnd =
-        IMAS.find_psi_boundary(r, z, psi, psiaxis, axis2bnd, Raxis, Zaxis, rwall, zwall, empty_r, empty_z;
-            PSI_interpolant=PSI_itp, raise_error_on_not_open=false, raise_error_on_not_closed=false).last_closed
-
-
-    npca1d = length(NNmodel1D.y_max) ÷ 5
+    npca1d = length(basis_functions_1d.ne[:, 1])
     ne_fit = y1d[1:npca1d, 1]
     Te_fit = y1d[npca1d+1:2*npca1d, 1]
     nc_fit = y1d[2*npca1d+1:3*npca1d, 1]
@@ -373,9 +366,6 @@ function predict_from_dd(dd::IMAS.dd{Float64}, t::Float64,
         Vt .+= Vt_fit[k] .* basis_functions_1d.Vt[k, :]
     end
 
-    psi1d = LinRange(psiaxis, psibnd, nw)
-    pres = IMAS.cumtrapz(psi1d, pp)
-    pres .-= pres[end]
     return psi, pp_fit, ffp_fit, ne, Te, nc, Ti, Vt
 end
 
@@ -391,7 +381,6 @@ function calculate_boundary(y::Matrix{T},
     nh = green.nh
     npca = length(basis_functions.Ip)
 
-    print(size(basis_functions.psi))
     psipla = zeros(T, (nw, nh))
     for ipca in 1:npca
         @views psipla .+= y[ipca] .* (basis_functions.psi[:, :, ipca])
@@ -434,5 +423,5 @@ function calculate_boundary(y::Matrix{T},
     lcfs = IMAS.trace_simple_surfaces(psi1d[end-1:end], green.rgrid, green.zgrid, psirz, PSI_itp, Raxis, Zaxis, wall.rlim, wall.zlim)[end]
     Rb, Zb = lcfs.r, lcfs.z
 
-    return Rb,Zb
+    return Rb, Zb
 end
