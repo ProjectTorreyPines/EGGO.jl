@@ -248,21 +248,16 @@ function fill_cp1d(cp1d, ne, Te, nc, Ti, Vt, rho, psi)
     return cp1d.ion[2].rotation_frequency_tor = Vt
 end
 
-function predict_from_dd(dd::IMAS.dd{Float64}, t::Float64,
-    NNmodel::NeuralNetModel,
-    NNmodel1D::NeuralNetModel,
-    green::GreenFunctionTables{Float64},
-    wall::Wall,
-    basis_functions::BasisFunctions{Float64},
-    basis_functions_1d::BasisFunctions1D{Float64})
+function get_vectors_from_dd(dd::IMAS.dd{Float64},
+    t::Float64,
+    green::GreenFunctionTables{Float64})
     dd.global_time = t
 
     nfsum = green.nfsum
     nesum = green.nesum
     nsilop = green.nsilop
     magpr2 = green.magpr2
-    nw = green.nw
-    nh = green.nh
+
 
     expsi = zeros(nsilop)
     fwtsi = ones(nsilop)
@@ -297,9 +292,7 @@ function predict_from_dd(dd::IMAS.dd{Float64}, t::Float64,
     Ip = @ddtime dd.pulse_schedule.flux_control.i_plasma.reference#dd.pulse_schedule.dd.equilibrium.time_slice[].global_quantities.ip
 
     shot = dd.dataset_description.data_entry.pulse
-    y_psi, y1d = EGGO.predict_psipla_free(shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip, NNmodel, NNmodel1D, green, basis_functions)
-    return y_psi, y1d, fcurrt, ecurrt
-
+    return shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip
 end
 
 function fit_profiles(y_psi::Matrix{T},
