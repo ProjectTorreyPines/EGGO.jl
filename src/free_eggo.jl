@@ -292,7 +292,9 @@ function get_vectors_from_dd(dd::IMAS.dd{Float64},
     Ip = @ddtime dd.pulse_schedule.flux_control.i_plasma.reference#dd.pulse_schedule.dd.equilibrium.time_slice[].global_quantities.ip
 
     shot = dd.dataset_description.data_entry.pulse
-    return shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip
+    Bt = @ddtime dd.pulse_schedule.tf.b_field_tor_vacuum
+
+    return shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip, Bt
 end
 
 function fit_profiles(y_psi::Matrix{T},
