@@ -77,10 +77,10 @@ function predict_psipla_free(shot::Int,
 
     XNN = vcat(X, fcurrt, ecurrt)
 
-    y = predict_NN(XNN, NNmodel)
+    y = predict_NN(XNN, NNmodel)[:,1]
 
     # Correct Ip to match experimental Ip
-    IpNN = sum(basis_functions.Ip .* y[1:32, 1])
+    IpNN = sum(basis_functions.Ip .* y[1:32])
     y .*= ip / IpNN
     #y_lsq.*= ip / IpNN
     #y = vcat(-1y_lsq,zeros(24),y[33:end])
@@ -94,7 +94,7 @@ function predict_psipla_free(shot::Int,
     x = EGGO.minmax_normalize(XNN, x_min, x_max)
     y1d = model1d(x)
     x = EGGO.minmax_unnormalize(x, x_min, x_max)
-    y1d = EGGO.minmax_unnormalize(y1d, y_min, y_max)  # Convert back to original scale
+    y1d = EGGO.minmax_unnormalize(y1d, y_min, y_max)[:,1]  # Convert back to original scale
 
     return y, y1d
 end
@@ -297,8 +297,8 @@ function get_vectors_from_dd(dd::IMAS.dd{Float64},
     return shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip, Bt
 end
 
-function fit_profiles(y_psi::Matrix{T},
-    y1d::Matrix{T},
+function fit_profiles(y_psi::Vector{T},
+    y1d::Vector{T},
     fcurrt::Vector{T},
     ecurrt::Vector{T},
     green::GreenFunctionTables{T},
@@ -317,11 +317,11 @@ function fit_profiles(y_psi::Matrix{T},
     psi = psipla .+ psiext
 
     npca1d = length(basis_functions_1d.ne[:, 1])
-    ne_fit = y1d[1:npca1d, 1]
-    Te_fit = y1d[npca1d+1:2*npca1d, 1]
-    nc_fit = y1d[2*npca1d+1:3*npca1d, 1]
-    Ti_fit = y1d[3*npca1d+1:4*npca1d, 1]
-    Vt_fit = y1d[4*npca1d+1:5*npca1d, 1]
+    ne_fit = y1d[1:npca1d]
+    Te_fit = y1d[npca1d+1:2*npca1d]
+    nc_fit = y1d[2*npca1d+1:3*npca1d]
+    Ti_fit = y1d[3*npca1d+1:4*npca1d]
+    Vt_fit = y1d[4*npca1d+1:5*npca1d]
 
     pp_fit = deepcopy(y_psi[32+1:32+npca1d])
     ffp_fit = deepcopy(y_psi[32+npca1d+1:32+npca1d*2])
@@ -364,7 +364,7 @@ function fit_profiles(y_psi::Matrix{T},
     return psi, pp_fit, ffp_fit, ne, Te, nc, Ti, Vt
 end
 
-function calculate_boundary(y::Matrix{T},
+function calculate_boundary(y::Vector{T},
     fcurrt::Vector{T},
     ecurrt::Vector{T},
     green::GreenFunctionTables{T},
