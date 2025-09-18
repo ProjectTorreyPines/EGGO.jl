@@ -235,6 +235,16 @@ function get_model1d(model_name::Symbol)
         NNmodel_raw[:x_min], NNmodel_raw[:x_max])
 end
 
+function get_weights(model_name::Symbol,shot::Integer)
+    if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
+       model_name == :d3d_cakenn_free
+        filename = dirname(@__DIR__) * "/models/fitweight.h5"
+    end
+    fitweights = read_hdf5_auto(filename)
+    idx = searchsortedlast(fitweights[:shots], shot)  
+    return fitweights[:fwtmp2][idx,:],fitweights[:fwtsi][idx,:]
+end
+
 function predict_from_dd(dd, t,green,NNmodel1d)
     dd.global_time = t
     
