@@ -1,7 +1,7 @@
 name = "EGGO"
 uuid = "25cd7528-e4e3-46fe-8df7-7ec8e1454e14"
 authors = ["Joseph McClenaghan"]
-version = "2.1.2"
+version = "2.2.0"
 
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
