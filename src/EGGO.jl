@@ -208,6 +208,7 @@ end
 
 """
     predict_model_from_boundary(Rb, Zb, pp, ffp, NNmodel, green, basis_functions, basis_functions_1d, coils; Ip_target=0.0, use_vacuumfield_green=false)
+
     predict_model_from_boundary(Rb, Zb, pp_fit, ffp_fit, NNmodel, green, basis_functions, coils; Ip_target=0.0, use_vacuumfield_green=false)
 
 Fit pressure and f f' profiles and predict equilibrium using a neural network model from plasma boundary points.
@@ -271,12 +272,14 @@ end
 
 """
     calculate_psiext(Rb_target, Zb_target, psipla, green, coils; use_vacuumfield_green=true)
+
     calculate_psiext(fcurrt, ecurrt, green)
 
 Compute the external poloidal flux (`Ψ_ext`) on the grid given target boundary points
 and an existing plasma flux distribution, optionally using vacuum-field Green's functions.
 """
-function calculate_psiext(Rb_target::Vector{T},
+function calculate_psiext(
+    Rb_target::Vector{T},
     Zb_target::Vector{T},
     psipla::Matrix{T},
     green::GreenFunctionTables{Float64},
@@ -288,7 +291,7 @@ function calculate_psiext(Rb_target::Vector{T},
     Ψpl_itp = Interpolations.cubic_spline_interpolation((r, z), psipla; extrapolation_bc=Interpolations.Line())
     psiext = zeros(length(r), length(z))
     if use_vacuumfield_green
-        iso_cps = VacuumFields.IsoControlPoints(Rb_target, Zb_target)
+        iso_cps = VacuumFields.IsoControlPoints(Rb_target, Zb_target; weight=1.0)
         fixed = Int[] # Integer vector denoting of fixed coils
         dΨpl_dR = (x, y) -> Interpolations.gradient(Ψpl_itp, x, y)[1]
         dΨpl_dZ = (x, y) -> Interpolations.gradient(Ψpl_itp, x, y)[2]
