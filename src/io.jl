@@ -16,7 +16,7 @@ function get_basis_functions(model_name)
     elseif model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
 
         filename = dirname(@__DIR__) * "/models/basis_functions_efit01efit02cake02.h5"
-    elseif model_name == :d3d_cakenn_free
+    elseif model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils
         filename = dirname(@__DIR__) * "/models/basis_functions_cakenn.h5"
     end
     raw = read_hdf5_auto(filename)
@@ -38,7 +38,7 @@ function get_basis_functions_1d(model_name::Symbol)
         filename = dirname(@__DIR__) * "/models/basis_functions_1d.h5"
     elseif model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
         filename = dirname(@__DIR__) * "/models/basis_functions_1d_efit01efit02cake02.h5"
-    elseif model_name == :d3d_cakenn_free
+    elseif model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils
         filename = dirname(@__DIR__) * "/models/basis_functions_1d_cakenn.h5"
     end
 
@@ -108,7 +108,7 @@ end
 function get_greens_function_tables(model_name)
     if (
         model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
-        model_name == :d3d_cakenn_free
+        model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils
     )
         filename = dirname(@__DIR__) * "/models/green.h5"
     end
@@ -169,7 +169,7 @@ Load the machine wall definition associated with a given model.
 """
 function get_wall(model_name::Symbol)
     if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
-       model_name == :d3d_cakenn_free
+       model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils
         filename = dirname(@__DIR__) * "/models/wall.h5"
     end
     raw = read_hdf5_auto(filename)
@@ -211,6 +211,8 @@ function get_model(model_name::Symbol)
         filename = dirname(@__DIR__) * "/models/model_efit01_coils.bson"
     elseif model_name == :d3d_cakenn_free
         filename = dirname(@__DIR__) * "/models/model_cakenn_free.bson"
+    elseif model_name == :d3d_cakenn_coils
+        filename = dirname(@__DIR__) * "/models/model_cakenn_coils.bson"
     end
     NNmodel_raw = Dict{Symbol,Any}()
     for (field, value) in BSON.load(filename, @__MODULE__)[:NNmodel]
@@ -237,7 +239,7 @@ end
 
 function get_weights(model_name::Symbol,shot::Integer)
     if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
-       model_name == :d3d_cakenn_free
+       model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils
         filename = dirname(@__DIR__) * "/models/fitweight.h5"
     end
     fitweights = read_hdf5_auto(filename)
