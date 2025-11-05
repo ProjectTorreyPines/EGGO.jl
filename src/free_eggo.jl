@@ -364,12 +364,56 @@ function fit_profiles(y_psi::Vector{T},
     return psi, pp_fit, ffp_fit, ne, Te, nc, Ti, Vt
 end
 
+function resample_arclength_keep_extrema(R::Vector{Float64}, Z::Vector{Float64}; N=200)
+    n = length(R)
+    @assert length(Z) == n
+    @assert N >= 4
+
+    # arc-length parameter
+    s = IMAS.arc_length(R, Z)
+
+    # target arc-lengths
+    s_target = range(first(s), last(s); length=N-4)
+
+    # interpolate
+    Rint = IMAS.interp1d(s, R).(s_target)
+    Zint = IMAS.interp1d(s, Z).(s_target)
+
+    # extrema indices
+    iRmax = argmax(R)
+    iRmin = argmin(R)
+    iZmax = argmax(Z)
+    iZmin = argmin(Z)
+    extreme_idxs = [iRmax, iRmin, iZmax, iZmin]
+
+    # ensure extrema included
+    Rout = collect(Rint)
+    Zout = collect(Zint)
+
+    for idx in extreme_idxs
+        push!(Rout, R[idx])
+        push!(Zout, Z[idx])
+    end
+
+    # sort by angle or arc length again
+    s_out = atan.(Rout.-median(R), Zout)
+    order = sortperm(s_out)
+
+    Rout_ordered, Zout_ordered = Rout[order], Zout[order]
+    Rout_ordered  = vcat(Rout_ordered, Rout_ordered[1])
+    Zout_ordered  = vcat(Zout_ordered, Zout_ordered[1])
+
+    return Rout_ordered, Zout_ordered
+end
+
+
 function calculate_boundary(y::Vector{T},
     fcurrt::Vector{T},
     ecurrt::Vector{T},
     green::GreenFunctionTables{T},
     basis_functions::BasisFunctions{T},
-    wall::Wall
+    wall::Wall;
+    nb::Int=0
 ) where {T<:Float64}
 
     nw = green.nw
@@ -417,6 +461,9 @@ function calculate_boundary(y::Vector{T},
 
     lcfs = IMAS.trace_simple_surfaces(psi1d[end-1:end], green.rgrid, green.zgrid, psirz, PSI_itp, Raxis, Zaxis, wall.rlim, wall.zlim)[end]
     Rb, Zb = lcfs.r, lcfs.z
-
-    return Rb, Zb
+    if nb>0
+        return resample_arclength_keep_extrema(Rb,Zb;N=nb)
+    else
+        return Rb, Zb
+    end
 end
