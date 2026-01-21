@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>EGGO.jl · EGGO</title><meta name="title" content="EGGO.jl · EGGO"/><meta property="og:title" content="EGGO.jl · EGGO"/><meta property="twitter:title" content="EGGO.jl · EGGO"/><meta name="description" content="Documentation for EGGO."/><meta property="og:description" content="Documentation for EGGO."/><meta property="twitter:description" content="Documentation for EGGO."/><script async src="https://www.googletagmanager.com/gtag/js?id=G-65D8V8C8VQ"></script><script>  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-65D8V8C8VQ', {'page_path': location.pathname + location.search + location.hash});
+</script><script data-outdated-warner src="assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="assets/documenter.js"></script><script src="search_index.js"></script><script src="siteinfo.js"></script><script src="../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href>EGGO</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li class="is-active"><a class="tocitem" href>EGGO.jl</a><ul class="internal"><li><a class="tocitem" href="#Installation"><span>Installation</span></a></li><li><a class="tocitem" href="#Usage-Examples"><span>Usage Examples</span></a></li><li><a class="tocitem" href="#Available-Models"><span>Available Models</span></a></li><li><a class="tocitem" href="#Testing"><span>Testing</span></a></li></ul></li><li><a class="tocitem" href="api/">API Reference</a></li><li><a class="tocitem" href="license/">License</a></li><li><a class="tocitem" href="notice/">Notice</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>EGGO.jl</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>EGGO.jl</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/ProjectTorreyPines/EGGO.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/ProjectTorreyPines/EGGO.jl/blob/master/README.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="EGGO.jl"><a class="docs-heading-anchor" href="#EGGO.jl">EGGO.jl</a><a id="EGGO.jl-1"></a><a class="docs-heading-anchor-permalink" href="#EGGO.jl" title="Permalink"></a></h1><p>EGGO.jl is a Julia package for equilibrium reconstruction and plasma physics analysis using neural networks. It provides functionality for predicting plasma equilibria from diagnostic measurements and boundary data.</p><h2 id="Installation"><a class="docs-heading-anchor" href="#Installation">Installation</a><a id="Installation-1"></a><a class="docs-heading-anchor-permalink" href="#Installation" title="Permalink"></a></h2><pre><code class="language-julia hljs">using Pkg
+Pkg.add(&quot;EGGO&quot;)</code></pre><h2 id="Usage-Examples"><a class="docs-heading-anchor" href="#Usage-Examples">Usage Examples</a><a id="Usage-Examples-1"></a><a class="docs-heading-anchor-permalink" href="#Usage-Examples" title="Permalink"></a></h2><h3 id="Basic-Equilibrium-Reconstruction-from-Boundary-Data"><a class="docs-heading-anchor" href="#Basic-Equilibrium-Reconstruction-from-Boundary-Data">Basic Equilibrium Reconstruction from Boundary Data</a><a id="Basic-Equilibrium-Reconstruction-from-Boundary-Data-1"></a><a class="docs-heading-anchor-permalink" href="#Basic-Equilibrium-Reconstruction-from-Boundary-Data" title="Permalink"></a></h3><pre><code class="language-julia hljs">using EGGO
+using EGGO.IMAS
+
+# Set up parameters
+nb = 101
+nw = 129
+b0 = 2.0
+r0 = 1.6955
+pend = 0.1
+
+# Example boundary and profile data (from test_efit01)
+Rb_target = [1.09559171, 1.0997446376, ...] # Boundary R coordinates
+Zb_target = [-0.05000000074505806, 0.040000000596046456, ...] # Boundary Z coordinates
+ffp_target = [...]  # F*F&#39; profile data
+pp_target = [...]   # Pressure profile data
+
+# Get model components
+model_name = :d3d_efit01
+green = EGGO.get_greens_function_tables(model_name)
+basis_functions = EGGO.get_basis_functions(model_name)
+basis_functions_1d, bf1d_itp = EGGO.get_basis_functions_1d(model_name)
+wall = EGGO.get_wall(model_name)
+NNmodel = EGGO.get_model(model_name)
+
+# Fit profiles
+pp_fit, ffp_fit = EGGO.fit_ppffp(pp_target, ffp_target, basis_functions_1d)
+
+# Predict equilibrium
+Jt, psirz, Ip = EGGO.predict_model_from_boundary(
+    Rb_target, Zb_target, pp_fit, ffp_fit, NNmodel, 
+    green, basis_functions, nothing, 0.0, false
+)
+
+# Extract key quantities
+Ψaxis, Raxis, Zaxis, Ψbnd, ffp, pp = EGGO.get_ΨaxisΨbndffppp(
+    psirz, green, basis_functions, basis_functions_1d, 
+    bf1d_itp, wall, pp_fit, ffp_fit
+)
+
+# Create IMAS data structure
+dd = IMAS.dd()
+eqt = resize!(dd.equilibrium.time_slice)
+EGGO.fill_eqt(eqt, psirz, green, wall, pp, ffp, b0, r0, pend, Ψbnd, Ψaxis, Raxis, Zaxis)</code></pre><h3 id="Equilibrium-Reconstruction-from-Coil-Currents"><a class="docs-heading-anchor" href="#Equilibrium-Reconstruction-from-Coil-Currents">Equilibrium Reconstruction from Coil Currents</a><a id="Equilibrium-Reconstruction-from-Coil-Currents-1"></a><a class="docs-heading-anchor-permalink" href="#Equilibrium-Reconstruction-from-Coil-Currents" title="Permalink"></a></h3><pre><code class="language-julia hljs">using EGGO
+
+# Example coil current data (from test_efit01_coils)
+ffp_target = [-3.05929054, -2.99817803, ...]  # F*F&#39; profile
+pp_target = [-292086.832, -291584.589, ...]   # Pressure profile
+fcurrt_target = [...]  # F-coil currents
+ecurrt_target = zeros(6)  # E-coil currents
+
+# Get model for coil-based reconstruction
+model_name = :d3d_efit01efit02cake02_coils
+green = EGGO.get_greens_function_tables(model_name)
+basis_functions = EGGO.get_basis_functions(model_name)
+basis_functions_1d, bf1d_itp = EGGO.get_basis_functions_1d(model_name)
+wall = EGGO.get_wall(model_name)
+NNmodel = EGGO.get_model(model_name)
+
+# Fit profiles
+pp_fit, ffp_fit = EGGO.fit_ppffp(pp_target, ffp_target, basis_functions_1d)
+
+# Predict from coil currents
+Jt, psirz, Ip = EGGO.predict_model_from_coils(
+    pp_fit, ffp_fit, ecurrt_target, fcurrt_target, 
+    NNmodel, green, basis_functions
+)</code></pre><h3 id="Free-Boundary-Reconstruction-with-Diagnostics"><a class="docs-heading-anchor" href="#Free-Boundary-Reconstruction-with-Diagnostics">Free-Boundary Reconstruction with Diagnostics</a><a id="Free-Boundary-Reconstruction-with-Diagnostics-1"></a><a class="docs-heading-anchor-permalink" href="#Free-Boundary-Reconstruction-with-Diagnostics" title="Permalink"></a></h3><pre><code class="language-julia hljs">using EGGO
+
+# Example diagnostic data
+shot = 168830
+fwtmp2 = [1.0, 1.0, 1.0, ...]  # Mirnov coil weights
+fwtsi = [1.0, 1.0, 1.0, ...]   # MSE weights
+expsi = [-0.403, 0.061, ...]    # MSE measurements
+expmp2 = [0.575, 0.578, ...]    # Mirnov measurements
+fcurrt = [-249457.5, -68876.1, ...]  # F-coil currents
+ecurrt = [-41790.4, -40929.4, ...]   # E-coil currents
+Ip = 1.26e6  # Plasma current
+
+# Get free-boundary model
+model_name = :d3d_cakenn_free
+green = EGGO.get_greens_function_tables(model_name)
+basis_functions = EGGO.get_basis_functions(model_name)
+basis_functions_1d, bf1d_itp = EGGO.get_basis_functions_1d(model_name)
+wall = EGGO.get_wall(model_name)
+NNmodel = EGGO.get_model(model_name)
+NNmodel1D = EGGO.get_model1d(model_name)
+
+# Predict equilibrium and profiles
+y_psi, y_1d = EGGO.predict_psipla_free(
+    shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip,
+    NNmodel, NNmodel1D, green, basis_functions
+)
+
+# Calculate boundary
+Rb, Zb = EGGO.calculate_boundary(y_psi, fcurrt, ecurrt, green, basis_functions, wall)</code></pre><h3 id="Kinetic-Profile-Prediction"><a class="docs-heading-anchor" href="#Kinetic-Profile-Prediction">Kinetic Profile Prediction</a><a id="Kinetic-Profile-Prediction-1"></a><a class="docs-heading-anchor-permalink" href="#Kinetic-Profile-Prediction" title="Permalink"></a></h3><pre><code class="language-julia hljs"># Thomson scattering data
+r_tom = [1.954, 1.924, 1.890, ...]  # Radial positions
+z_tom = [-0.067, -0.065, -0.061, ...]  # Vertical positions  
+ne_tom = [5.24e19, 5.07e19, 4.99e19, ...]  # Electron density
+Te_tom = [2388.3, 2541.4, 2617.2, ...]     # Electron temperature
+
+# CER data
+r_cer = [1.9, 2.0, 2.1]  # CER radial positions
+z_cer = [0.0, 0.0, 0.0]  # CER vertical positions
+nc_cer = [1.e19, 0.5e19, 0.25e19]  # Carbon density
+
+# Predict kinetic profiles
+y_ne, y_Te, y_nc = EGGO.predict_kinetic(
+    y_psi[:,1], r_tom, z_tom, ne_tom, Te_tom,
+    r_cer, z_cer, nc_cer, fcurrt, ecurrt,
+    green, wall, basis_functions, bf1d_itp
+)</code></pre><h3 id="Processing-Time-Series-Data"><a class="docs-heading-anchor" href="#Processing-Time-Series-Data">Processing Time Series Data</a><a id="Processing-Time-Series-Data-1"></a><a class="docs-heading-anchor-permalink" href="#Processing-Time-Series-Data" title="Permalink"></a></h3><pre><code class="language-julia hljs">using EGGO
+using EGGO.IMAS
+
+# Load IMAS data from HDF5
+dd = IMAS.hdf2imas(&quot;./dd_200000.h5&quot;)
+
+# Set up model
+model_name = :d3d_cakenn_free
+green = EGGO.get_greens_function_tables(model_name)
+basis_functions = EGGO.get_basis_functions(model_name)
+basis_functions_1d, bf1d_itp = EGGO.get_basis_functions_1d(model_name)
+wall = EGGO.get_wall(model_name)
+NNmodel = EGGO.get_model(model_name)
+NNmodel1D = EGGO.get_model1d(model_name)
+
+# Process time series
+times = dd.magnetics.time
+for t in times
+    # Extract vectors from IMAS data
+    shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip = 
+        EGGO.get_vectors_from_dd(dd, t, green)
+    
+    # Predict equilibrium
+    y_psi, y1d = EGGO.predict_psipla_free(
+        shot, expsi, fwtsi, expmp2, fwtmp2, fcurrt, ecurrt, Ip,
+        NNmodel, NNmodel1D, green, basis_functions
+    )
+    
+    # Fit profiles if needed
+    psirz, pp_fit, ffp_fit, ne, Te, nc, Ti, Vt = EGGO.fit_profiles(
+        y_psi, y1d, fcurrt, ecurrt, green, basis_functions, 
+        basis_functions_1d, wall
+    )
+    
+    # Calculate boundary if needed
+    Rb, Zb = EGGO.calculate_boundary(y_psi, fcurrt, ecurrt, green, basis_functions, wall)
+end</code></pre><h2 id="Available-Models"><a class="docs-heading-anchor" href="#Available-Models">Available Models</a><a id="Available-Models-1"></a><a class="docs-heading-anchor-permalink" href="#Available-Models" title="Permalink"></a></h2><p>EGGO.jl includes several pre-trained models for different tokamaks and reconstruction scenarios:</p><ul><li><code>:d3d_efit01</code> - DIII-D fixed-boundary </li><li><code>:d3d_efit01efit02cake02</code> - DIII-D fixed-boundary multi-model ensemble </li><li><code>:d3d_efit01efit02cake02_coils</code> - DIII-D fix-boundary multi-model ensemble with coil currents</li><li><code>:d3d_cakenn_free</code> :- DIII-D free-boundary reconstruction</li></ul><h2 id="Testing"><a class="docs-heading-anchor" href="#Testing">Testing</a><a id="Testing-1"></a><a class="docs-heading-anchor-permalink" href="#Testing" title="Permalink"></a></h2><p>Run the test suite to verify installation:</p><pre><code class="language-julia hljs">using Pkg
+Pkg.test(&quot;EGGO&quot;)</code></pre><p>The test suite includes examples for:</p><ul><li>Fixed-boundary reconstruction (<code>test_efit01</code>)</li><li>Coil-based reconstruction (<code>test_efit01_coils</code>) </li><li>Multi-model reconstruction (<code>test_efit01efit02cake02</code>)</li><li>Free-boundary reconstruction with diagnostics (<code>test_cakenn_free</code>)</li></ul><p>See <code>test/runtests.jl</code> for detailed examples and usage patterns.</p></article><nav class="docs-footer"><a class="docs-footer-nextpage" href="api/">API Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Wednesday 21 January 2026 09:41">Wednesday 21 January 2026</span>. Using Julia version 1.12.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
