@@ -16,6 +16,271 @@ include("structures.jl")
 include("io.jl")
 include("free_eggo.jl")
 
+"""
+    NormalizedModel{M,T}
+
+A Flux layer that wraps a neural network model with input/output normalization.
+This makes the model self-contained - users don't need to manually normalize inputs
+or unnormalize outputs.
+
+# Fields
+- `model::M`: The underlying Flux model (e.g., Chain)
+- `x_min::Matrix{T}`: Minimum values for input normalization
+- `x_max::Matrix{T}`: Maximum values for input normalization
+- `y_min::Matrix{T}`: Minimum values for output unnormalization
+- `y_max::Matrix{T}`: Maximum values for output unnormalization
+
+# Example
+```julia
+normalized_model = NormalizedModel(model, x_min, x_max, y_min, y_max)
+y = normalized_model(x)  # Automatically normalizes x, runs model, unnormalizes y
+```
+"""
+struct NormalizedModel{M,T}
+    model::M
+    x_min::Matrix{T}
+    x_max::Matrix{T}
+    y_min::Matrix{T}
+    y_max::Matrix{T}
+end
+
+"""
+    (m::NormalizedModel)(x)
+
+Forward pass through the normalized model. Automatically handles normalization
+of inputs and unnormalization of outputs.
+"""
+function (m::NormalizedModel)(x)
+    x_norm = minmax_normalize(x, m.x_min, m.x_max)
+    y_norm = m.model(x_norm)
+    y = minmax_unnormalize(y_norm, m.y_min, m.y_max)
+    return y
+end
+
+# Register with Flux as a layer - automatically handles parameters and pretty-printing
+Flux.@layer NormalizedModel
+
+"""
+    to_normalized_model(nn_model::NeuralNetModel)
+
+Convert a legacy NeuralNetModel to a self-contained NormalizedModel that includes
+preprocessing (normalization) as part of the model itself.
+
+# Example
+```julia
+# Load your existing model
+nn_model = EGGO.get_model(:d3d_cakenn_free)
+
+# Convert to normalized model
+normalized = EGGO.to_normalized_model(nn_model)
+
+# Now you can use it directly without manual normalization
+y = normalized(x)  # That's it!
+```
+"""
+function to_normalized_model(nn_model::NeuralNetModel)
+    return NormalizedModel(
+        nn_model.model,
+        nn_model.x_min,
+        nn_model.x_max,
+        nn_model.y_min,
+        nn_model.y_max
+    )
+end
+
+"""
+    RegularizedLeastSquaresLayer
+
+ONNX-compatible layer for regularized least squares.
+Precomputes the pseudoinverse for fixed A matrix and regularization.
+
+NO MASKING - assumes all measurements are always used. For bad/missing measurements,
+users should set them to 0 in the input.
+
+W = (A[:, 1:npca]' * A[:, 1:npca] + λI)^(-1) * A[:, 1:npca]'
+y_lsq = W * X
+
+# Fields
+- `W::Matrix`: Precomputed pseudoinverse (npca × n_measurements)
+- `A::Matrix`: Original A matrix (n_measurements × n_basis)
+- `npca::Int`: Number of PCA components
+"""
+struct RegularizedLeastSquaresLayer{T<:Real}
+    W::Matrix{T}       # Precomputed (A' * A + λI)^(-1) * A'
+    A::Matrix{T}       # Original A matrix
+    npca::Int
+end
+
+function RegularizedLeastSquaresLayer(A::Matrix{T}, npca::Int, lambda::T) where {T<:Real}
+    A_pca = A[:, 1:npca]
+    # Precompute pseudoinverse: (A' * A + λI)^(-1) * A' (ONNX-compatible!)
+    W = (A_pca' * A_pca + lambda * I) \ A_pca'
+    return RegularizedLeastSquaresLayer(W, A, npca)
+end
+
+# Forward pass - pure matrix multiplication (ONNX-compatible!)
+function (layer::RegularizedLeastSquaresLayer)(X::AbstractVector)
+    # Solve: y_lsq = W * X (just a matrix multiplication!)
+    y_lsq = layer.W * X
+
+    # Reconstruct: X_reconstructed = A[:, 1:npca] * y_lsq
+    X_reconstructed = layer.A[:, 1:layer.npca] * y_lsq
+
+    return X_reconstructed, y_lsq
+end
+
+Flux.@layer RegularizedLeastSquaresLayer
+
+"""
+    CompletePreprocessingModel{M,G,B}
+
+A comprehensive Flux layer that encapsulates the entire prediction pipeline:
+1. Raw diagnostic inputs (expsi, expmp2, fcurrt, ecurrt, Ip, fwtsi, fwtmp2)
+2. Flux/probe preprocessing and masking
+3. Regularized least squares solve (ONNX-compatible!)
+4. NN prediction with normalization
+
+This makes the model completely self-contained - users just provide raw diagnostics
+and get predictions without knowing any preprocessing details.
+
+ONNX-EXPORTABLE: All operations are pure tensor ops (matmul, add, multiply, etc.)
+
+# Fields
+- `nn_model::M`: The NormalizedModel (includes normalization)
+- `green::G`: Green function tables (as constant weights)
+- `basis_functions::B`: Basis functions for reconstruction (as constant weights)
+- `lsq_layer`: Precomputed regularized least squares layer
+"""
+struct CompletePreprocessingModel{M,G,B,L}
+    nn_model::M
+    green::G
+    basis_functions::B
+    lsq_layer::L
+end
+
+"""
+    (m::CompletePreprocessingModel)(expsi, expmp2, fcurrt, ecurrt, Ip)
+
+Forward pass through the complete preprocessing model. Takes raw diagnostic data
+and returns predictions.
+
+ALL OPERATIONS ARE ONNX-COMPATIBLE - pure tensor operations (matmul, add, multiply, etc.)
+NO MASKING - for bad/missing diagnostics, set them to 0 in the input.
+
+# Arguments
+- `expsi`: Experimental psi loop measurements (set bad measurements to 0)
+- `expmp2`: Experimental magnetic probe measurements (set bad measurements to 0)
+- `fcurrt`: F-coil currents
+- `ecurrt`: E-coil currents
+- `Ip`: Plasma current
+
+# Returns
+- Predictions from the neural network (Matrix)
+"""
+function (m::CompletePreprocessingModel)(expsi, expmp2, fcurrt, ecurrt, Ip)
+    # Compute external flux contributions for loops (ONNX: matmul, add, sub)
+    siref = expsi[1]
+    cm1_flux = m.green.rsilfc * fcurrt
+    cm2_flux = m.green.rsilec * ecurrt
+    psiloop_ext = cm1_flux .+ cm2_flux .- siref
+    psiloop_in = expsi .- psiloop_ext
+    psiloop_in[1] -= siref
+
+    # Compute external contributions for probes (ONNX: matmul, sub)
+    cm1_probe = m.green.rmp2fc * fcurrt
+    cm2_probe = m.green.rmp2ec * ecurrt
+    bp_in = expmp2 .- cm1_probe .- cm2_probe
+
+    # Build plasma X vector (ONNX: concatenate, divide)
+    X = vcat(psiloop_in, bp_in, [Ip / 1e6])
+
+    # Regularized least squares (ONNX: just matrix multiply!)
+    X_reconstructed, y_lsq = m.lsq_layer(X)
+
+    # Build input for NN (ONNX: concatenate)
+    XNN = vcat(X_reconstructed, fcurrt, ecurrt)
+
+    # Run through NN with built-in normalization (ONNX: matmul, relu, add, multiply)
+    y = m.nn_model(XNN)
+
+    # Correct Ip to match experimental Ip (ONNX: dot product, divide, multiply)
+    IpNN = sum(m.basis_functions.Ip .* y[1:32])
+    y = y .* (Ip / IpNN)
+
+    return y
+end
+
+# Register with Flux
+Flux.@layer CompletePreprocessingModel
+
+"""
+    to_complete_model(nn_model, green, basis_functions; npca=8, reg_lambda=1e-10)
+
+Create a completely self-contained ONNX-EXPORTABLE model that includes ALL preprocessing,
+from raw diagnostics to final predictions.
+
+**IMPORTANT**: This model uses NO MASKING for ONNX compatibility.
+For bad/missing diagnostic measurements, set them to 0 in the input.
+
+All operations are pure tensor operations (matmul, add, multiply, etc.):
+- Green table multiplications → precomputed constant matrices
+- Regularized least squares → precomputed pseudoinverse (just a matmul!)
+- Min-max normalization → built into the NormalizedModel
+- Neural network → standard Flux layers
+
+# Example
+```julia
+complete_model = EGGO.to_complete_model(
+    NNmodel,
+    green,
+    basis_functions,
+    npca=8,
+    reg_lambda=1e-10
+)
+
+# Julia usage - just provide raw diagnostics (set bad ones to 0)
+predictions = complete_model(expsi, expmp2, fcurrt, ecurrt, Ip)
+
+# Export to ONNX for Python
+using ONNX
+ONNX.save("model.onnx", complete_model)
+
+# Python usage
+# import onnxruntime as ort
+# model = ort.InferenceSession("model.onnx")
+# predictions = model.run(None, {
+#     'expsi': expsi,    # Set bad measurements to 0
+#     'expmp2': expmp2,  # Set bad measurements to 0
+#     'fcurrt': fcurrt,
+#     'ecurrt': ecurrt,
+#     'Ip': Ip
+# })[0]
+```
+"""
+function to_complete_model(nn_model, green, basis_functions; npca=8, reg_lambda=1e-10)
+    # Convert to NormalizedModel if it isn't already
+    if isa(nn_model, NeuralNetModel)
+        nn_model = to_normalized_model(nn_model)
+    end
+
+    # Build the A matrix for least squares
+    A = vcat(
+        basis_functions.psi_loop,
+        basis_functions.bp_probe,
+        -reshape(basis_functions.Ip, 1, 32) ./ 1e6
+    )
+
+    # Create precomputed least squares layer
+    lsq_layer = RegularizedLeastSquaresLayer(A, npca, reg_lambda)
+
+    return CompletePreprocessingModel(
+        nn_model,
+        green,
+        basis_functions,
+        lsq_layer
+    )
+end
+
 
 """
     fit_ppffp(pp::Vector{T}, ffp::Vector{T}, basis_functions_1d::BasisFunctions1D{Float64}) 
@@ -622,6 +887,8 @@ function reg_solve(A::AbstractArray{T}, b::AbstractArray{T}, λ::T) where {T<:Re
 end
 
 export get_greens_function_tables, get_basis_functions, get_model, get_basis_functions_1d, predict_model
+export NormalizedModel, to_normalized_model, minmax_normalize, minmax_unnormalize
+export CompletePreprocessingModel, to_complete_model, RegularizedLeastSquaresLayer
 
 const document = Dict()
 document[Symbol(@__MODULE__)] = [name for name in Base.names(@__MODULE__; all=false, imported=false) if name != Symbol(@__MODULE__)]
