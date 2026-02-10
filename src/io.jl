@@ -16,7 +16,7 @@ function get_basis_functions(model_name)
     elseif model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
 
         filename = dirname(@__DIR__) * "/models/basis_functions_efit01efit02cake02.h5"
-    elseif model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils
+    elseif model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils || model_name == :d3d_cakenn_coils_jpar
         filename = dirname(@__DIR__) * "/models/basis_functions_cakenn.h5"
     end
     raw = read_hdf5_auto(filename)
@@ -38,10 +38,12 @@ function get_basis_functions_1d(model_name::Symbol)
         filename = dirname(@__DIR__) * "/models/basis_functions_1d.h5"
     elseif model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils
         filename = dirname(@__DIR__) * "/models/basis_functions_1d_efit01efit02cake02.h5"
-    elseif model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils
+    elseif model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils 
         filename = dirname(@__DIR__) * "/models/basis_functions_1d_cakenn.h5"
+    elseif model_name == :d3d_cakenn_coils_jpar
+        filename = dirname(@__DIR__) * "/models/basis_functions_1d_cakenn_jpar.h5"
     end
-
+    
     raw = read_hdf5_auto(filename)
     #newne = zeros(9, 129)
 
@@ -98,9 +100,18 @@ function get_basis_functions_1d(model_name::Symbol)
         raw_itp[:Ti] = missing
         raw_itp[:Vt] = missing
     end
+    if model_name == :d3d_cakenn_coils_jpar
+        raw_itp[:jpar] = [
+            IMAS.interp1d(raw[:psi], raw[:jpar][i, :])
+            for i in 1:size(raw[:jpar])[1]
+        ]
+    else
+        raw[:jpar] = missing
+        raw_itp[:jpar] = missing
+    end
 
-    return BasisFunctions1D(raw[:psi], raw[:pp], raw[:ffp], raw[:ne], raw[:Te], raw[:nc],raw[:Ti],raw[:Vt]),
-    BasisFunctions1Dinterp(raw_itp[:pp], raw_itp[:ffp], raw_itp[:ne], raw_itp[:Te], raw_itp[:nc],raw_itp[:Ti],raw_itp[:Vt])
+    return BasisFunctions1D(raw[:psi], raw[:pp], raw[:ffp],raw[:jpar], raw[:ne], raw[:Te], raw[:nc],raw[:Ti],raw[:Vt]),
+    BasisFunctions1Dinterp(raw_itp[:pp], raw_itp[:ffp],raw_itp[:jpar], raw_itp[:ne], raw_itp[:Te], raw_itp[:nc],raw_itp[:Ti],raw_itp[:Vt])
 end
 
 
@@ -108,7 +119,7 @@ end
 function get_greens_function_tables(model_name)
     if (
         model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
-        model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils
+        model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils || model_name == :d3d_cakenn_coils_jpar
     )
         filename = dirname(@__DIR__) * "/models/green.h5"
     end
@@ -163,17 +174,29 @@ end
 
 
 """
-    get_wall(model_name::Symbol)
+    get_wall(model_name::Symbol; shot::Integer=999999)
 
-Load the machine wall definition associated with a given model.
+Load the machine wall definition for a given model and shot number.
+Selects the wall from `walls.h5` with the largest shot number that is ≤ the requested shot.
+Defaults to shot 999999 (latest wall).
 """
-function get_wall(model_name::Symbol)
+function get_wall(model_name::Symbol; shot::Integer=999999)
     if model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
-       model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils
-        filename = dirname(@__DIR__) * "/models/wall.h5"
+       model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils || model_name == :d3d_cakenn_coils_jpar
+        filename = dirname(@__DIR__) * "/models/walls.h5"
     end
-    raw = read_hdf5_auto(filename)
-    return Wall(raw[:rlim], raw[:zlim])
+    HDF5.h5open(filename, "r") do file
+        available_shots = sort!(parse.(Int, keys(file)))
+        idx = searchsortedlast(available_shots, shot)
+        if idx == 0
+            error("No wall available for shot $shot (earliest available: $(available_shots[1]))")
+        end
+        selected_shot = available_shots[idx]
+        group_name = lpad(selected_shot, 6, '0')
+        R = read(file, "$group_name/R")
+        Z = read(file, "$group_name/Z")
+        return Wall(R, Z)
+    end
 end
 
 
@@ -211,8 +234,8 @@ function get_model(model_name::Symbol)
         filename = dirname(@__DIR__) * "/models/model_efit01_coils.bson"
     elseif model_name == :d3d_cakenn_free
         filename = dirname(@__DIR__) * "/models/model_cakenn_free.bson"
-    elseif model_name == :d3d_cakenn_coils
-        filename = dirname(@__DIR__) * "/models/model_cakenn_coils.bson"
+    elseif model_name == :d3d_cakenn_coils_jpar
+        filename = dirname(@__DIR__) * "/models/model_cakenn_coils_jpar.bson"
     end
     NNmodel_raw = Dict{Symbol,Any}()
     for (field, value) in BSON.load(filename, @__MODULE__)[:NNmodel]

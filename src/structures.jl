@@ -18,6 +18,7 @@ struct BasisFunctions1D{T<:Float64}
     psi::Vector{T}
     pp::Matrix{T}
     ffp::Matrix{T}
+    jpar::Union{Matrix{T},Missing}
     ne::Union{Matrix{T},Missing}
     Te::Union{Matrix{T},Missing}
     nc::Union{Matrix{T},Missing}
@@ -28,6 +29,7 @@ end
 struct BasisFunctions1Dinterp
     pp::Vector{Any}
     ffp::Vector{Any}
+    jpar::Union{Vector{Any},Missing}
     ne::Union{Vector{Any},Missing}
     Te::Union{Vector{Any},Missing}
     nc::Union{Vector{Any},Missing}
