@@ -35,5 +35,3 @@ Manifest.toml
 # temp/test files
 test.json
 asd.jl
-# Claude Code guidance file (auto-generated)
-CLAUDE.md
