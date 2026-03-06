@@ -116,7 +116,7 @@ end
 
 
 
-function get_greens_function_tables(model_name)
+function get_greens_function_tables(model_name; shot::Integer=99999)
     if (
         model_name == :d3d_efit01 || model_name == :d3d_efit01_coils || model_name == :d3d_efit01efit02cake02 || model_name == :d3d_efit01efit02cake02_coils ||
         model_name == :d3d_cakenn_free || model_name == :d3d_cakenn_coils || model_name == :d3d_cakenn_coils_jpar
