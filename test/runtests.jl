@@ -169,6 +169,8 @@ end
     y_psi, y_1d = EGGO.predict_psipla_free(shot,expsi,fwtsi,expmp2,fwtmp2,fcurrt,ecurrt,Ip,NNmodel,NNmodel1D,green,basis_functions)
     y_ne, y_Te, y_nc = EGGO.predict_kinetic(y_psi[:,1], r_tom,z_tom,ne_tom,Te_tom,r_cer,z_cer,nc_cer,fcurrt,ecurrt,green,wall,basis_functions,bf1d_itp)
 
+    EGGO.calculate_axis_boundary(y_psi,fcurrt,ecurrt,green,basis_functions,wall)
+
     @test y_psi !== nothing
     @test y_1d !== nothing
     @test y_ne !== nothing

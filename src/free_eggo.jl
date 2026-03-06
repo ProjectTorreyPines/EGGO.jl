@@ -407,7 +407,7 @@ function resample_arclength_keep_extrema(R::Vector{Float64}, Z::Vector{Float64};
 end
 
 
-function calculate_boundary(y::Vector{T},
+function calculate_axis_boundary(y::Vector{T},
     fcurrt::Vector{T},
     ecurrt::Vector{T},
     green::GreenFunctionTables{T},
@@ -462,8 +462,8 @@ function calculate_boundary(y::Vector{T},
     lcfs = IMAS.trace_simple_surfaces(psi1d[end-1:end], green.rgrid, green.zgrid, psirz, PSI_itp, Raxis, Zaxis, wall.rlim, wall.zlim)[end]
     Rb, Zb = lcfs.r, lcfs.z
     if nb>0
-        return resample_arclength_keep_extrema(Rb,Zb;N=nb)
+        return resample_arclength_keep_extrema(Rb,Zb;N=nb), Ψbnd, Raxis, Zaxis, Ψaxis
     else
-        return Rb, Zb
+        return Rb, Zb, Ψbnd, Raxis, Zaxis, Ψaxis
     end
 end
