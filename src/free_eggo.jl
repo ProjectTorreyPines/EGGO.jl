@@ -361,7 +361,7 @@ function fit_profiles(y_psi::Vector{T},
         Vt .+= Vt_fit[k] .* basis_functions_1d.Vt[k, :]
     end
 
-    return psi, pp_fit, ffp_fit, ne, Te, nc, Ti, Vt
+    return psi, pp, ffp, ne, Te, nc, Ti, Vt
 end
 
 function resample_arclength_keep_extrema(R::Vector{Float64}, Z::Vector{Float64}; N=200)
