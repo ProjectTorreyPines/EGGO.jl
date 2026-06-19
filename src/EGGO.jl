@@ -10,7 +10,7 @@ using RegularizedLeastSquares
 using PolygonOps
 import VacuumFields
 using LinearAlgebra
-using StatsBase
+using Statistics
 
 include("structures.jl")
 include("io.jl")
