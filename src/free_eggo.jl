@@ -76,21 +76,17 @@ function predict_psipla_free(shot::Int,
     end
 
     XNN = vcat(X, fcurrt, ecurrt)
-
+    XNN[end-24] *= 1e6
     y = predict_NN(XNN, NNmodel)[:,1]
-
     # Correct Ip to match experimental Ip
     IpNN = sum(basis_functions.Ip .* y[1:32])
     y .*= ip / IpNN
-    #y_lsq.*= ip / IpNN
-    #y = vcat(-1y_lsq,zeros(24),y[33:end])
 
     model1d = NNmodel1D.model
     x_min = NNmodel1D.x_min
     x_max = NNmodel1D.x_max
     y_min = NNmodel1D.y_min
     y_max = NNmodel1D.y_max
-    XNN[end-24] *= 1e6
     x = EGGO.minmax_normalize(XNN, x_min, x_max)
     y1d = model1d(x)
     x = EGGO.minmax_unnormalize(x, x_min, x_max)
@@ -315,7 +311,6 @@ function fit_profiles(y_psi::Vector{T},
     end
     psiext = EGGO.calculate_psiext(fcurrt, ecurrt, green)
     psi = psipla .+ psiext
-
     npca1d = length(basis_functions_1d.ne[:, 1])
     ne_fit = y1d[1:npca1d]
     Te_fit = y1d[npca1d+1:2*npca1d]
