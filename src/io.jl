@@ -195,35 +195,45 @@ function read_hdf5_auto(filename::String)
 end
 
 
-"""
-    get_model(model_name::Symbol; version::Symbol=:v2)
+# Registry of pretrained NN model files: model_name => (version => filename in models/).
+# To add a retrained network, add a new `:vN => "..._vN.bson"` entry; `:latest` picks the highest N.
+const MODEL_FILES = Dict{Symbol,Dict{Symbol,String}}(
+    :d3d_efit01 => Dict(:v1 => "model_efit01.bson"),
+    :d3d_efit01_coils => Dict(:v1 => "model_efit01_coils.bson"),
+    :d3d_efit01efit02cake02 => Dict(:v1 => "model_efit01efit02cake02.bson"),
+    :d3d_efit01efit02cake02_coils => Dict(:v1 => "model_efit01efit02cake02_coils.bson"),
+    :d3d_cakenn_free => Dict(
+        :v1 => "model_cakenn_free.bson",
+        :v2 => "model_cakenn_free_v2.bson", # PartialPositivity output layer
+    ),
+    :d3d_cakenn_coils => Dict(:v1 => "model_cakenn_coils.bson"),
+)
 
-Load a pretrained neural network equilibrium model by name.
+const MODEL1D_FILES = Dict{Symbol,Dict{Symbol,String}}(
+    :d3d_cakenn_free => Dict(:v1 => "model1d_cakenn_free.bson"),
+)
 
-For `:d3d_cakenn_free`, `version` selects the network:
-- `:v2` (default): retrained model with a `PartialPositivity` output layer
-- `:v1`: previous model
 """
-function get_model(model_name::Symbol; version::Symbol=:v2)
-    if model_name == :d3d_efit01
-        filename = dirname(@__DIR__) * "/models/model_efit01.bson"
-    elseif model_name == :d3d_efit01efit02cake02
-        filename = dirname(@__DIR__) * "/models/model_efit01efit02cake02.bson"
-    elseif model_name == :d3d_efit01efit02cake02_coils
-        filename = dirname(@__DIR__) * "/models/model_efit01efit02cake02_coils.bson"
-    elseif model_name == :d3d_efit01_coils
-        filename = dirname(@__DIR__) * "/models/model_efit01_coils.bson"
-    elseif model_name == :d3d_cakenn_free
-        if version == :v2
-            filename = dirname(@__DIR__) * "/models/model_cakenn_free.bson"
-        elseif version == :v1
-            filename = dirname(@__DIR__) * "/models/model_cakenn_free_v1.bson"
-        else
-            error("Unknown version $version for $model_name; expected :v1 or :v2")
-        end
-    elseif model_name == :d3d_cakenn_coils
-        filename = dirname(@__DIR__) * "/models/model_cakenn_coils.bson"
+    model_versions(model_name::Symbol; model1d::Bool=false)
+
+Return the sorted list of available versions for a model.
+"""
+function model_versions(model_name::Symbol; model1d::Bool=false)
+    registry = model1d ? MODEL1D_FILES : MODEL_FILES
+    haskey(registry, model_name) || error("Unknown $(model1d ? "1D " : "")model $model_name; available: $(sort(collect(keys(registry))))")
+    return sort(collect(keys(registry[model_name])); by=v -> parse(Int, string(v)[2:end]))
+end
+
+function model_filename(registry::Dict{Symbol,Dict{Symbol,String}}, model_name::Symbol, version::Symbol)
+    versions = model_versions(model_name; model1d=(registry === MODEL1D_FILES))
+    if version == :latest
+        version = versions[end]
     end
+    haskey(registry[model_name], version) || error("Unknown version $version for $model_name; available: $versions")
+    return joinpath(dirname(@__DIR__), "models", registry[model_name][version])
+end
+
+function load_nn_model(filename::String)
     NNmodel_raw = Dict{Symbol,Any}()
     for (field, value) in BSON.load(filename, @__MODULE__)[:NNmodel]
         NNmodel_raw[field] = value
@@ -233,18 +243,25 @@ function get_model(model_name::Symbol; version::Symbol=:v2)
         NNmodel_raw[:x_min], NNmodel_raw[:x_max])
 end
 
-function get_model1d(model_name::Symbol)
+"""
+    get_model(model_name::Symbol; version::Symbol=:latest)
 
-    if model_name == :d3d_cakenn_free
-        filename = dirname(@__DIR__) * "/models/model1d_cakenn_free.bson"
-    end
-    NNmodel_raw = Dict{Symbol,Any}()
-    for (field, value) in BSON.load(filename, @__MODULE__)[:NNmodel]
-        NNmodel_raw[field] = value
-    end
-    NNmodel_raw[:model] = Flux.fmap(Flux.f64, NNmodel_raw[:model]) # map to 64 bits
-    return NeuralNetModel(NNmodel_raw[:model], NNmodel_raw[:y_min], NNmodel_raw[:y_max],
-        NNmodel_raw[:x_min], NNmodel_raw[:x_max])
+Load a pretrained neural network equilibrium model by name.
+
+`version` selects among retrained networks (e.g. `:v1`, `:v2`); `:latest` (default)
+loads the highest available version. See `model_versions(model_name)`.
+"""
+function get_model(model_name::Symbol; version::Symbol=:latest)
+    return load_nn_model(model_filename(MODEL_FILES, model_name, version))
+end
+
+"""
+    get_model1d(model_name::Symbol; version::Symbol=:latest)
+
+Load a pretrained 1D (kinetic profile) neural network model by name.
+"""
+function get_model1d(model_name::Symbol; version::Symbol=:latest)
+    return load_nn_model(model_filename(MODEL1D_FILES, model_name, version))
 end
 
 function get_weights(model_name::Symbol,shot::Integer)
