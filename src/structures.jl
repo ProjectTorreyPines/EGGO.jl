@@ -66,3 +66,21 @@ struct Wall
     rlim::Vector{Float64}
     zlim::Vector{Float64}
 end
+
+"""
+    PartialPositivity(npos)
+
+Output layer that applies `softplus` to the first `npos` rows of its input and
+passes the remaining rows through unchanged. Used as the final layer of the
+CAKENN models so that, e.g., PCA coefficients that must be positive are.
+Defined here so that BSON checkpoints saved with this layer resolve inside EGGO.
+"""
+struct PartialPositivity
+    npos::Int
+end
+
+function (p::PartialPositivity)(x::AbstractMatrix)
+    pos_part = Flux.softplus.(x[1:p.npos, :])
+    free_part = x[p.npos+1:end, :]
+    return vcat(pos_part, free_part)
+end

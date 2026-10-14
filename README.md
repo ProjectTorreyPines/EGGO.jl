@@ -193,7 +193,7 @@ EGGO.jl includes several pre-trained models for different tokamaks and reconstru
 - `:d3d_efit01` - DIII-D fixed-boundary 
 - `:d3d_efit01efit02cake02` - DIII-D fixed-boundary multi-model ensemble 
 - `:d3d_efit01efit02cake02_coils` - DIII-D fix-boundary multi-model ensemble with coil currents
-- `:d3d_cakenn_free` :- DIII-D free-boundary reconstruction
+- `:d3d_cakenn_free` :- DIII-D free-boundary reconstruction. Use `get_model(:d3d_cakenn_free; version=:v1)` to load the previous network instead of the default `:v2`
 
 ## Testing
 

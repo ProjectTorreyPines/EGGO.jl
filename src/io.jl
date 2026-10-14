@@ -196,11 +196,15 @@ end
 
 
 """
-    get_model(model_name::Symbol)
+    get_model(model_name::Symbol; version::Symbol=:v2)
 
 Load a pretrained neural network equilibrium model by name.
+
+For `:d3d_cakenn_free`, `version` selects the network:
+- `:v2` (default): retrained model with a `PartialPositivity` output layer
+- `:v1`: previous model
 """
-function get_model(model_name::Symbol)
+function get_model(model_name::Symbol; version::Symbol=:v2)
     if model_name == :d3d_efit01
         filename = dirname(@__DIR__) * "/models/model_efit01.bson"
     elseif model_name == :d3d_efit01efit02cake02
@@ -210,7 +214,13 @@ function get_model(model_name::Symbol)
     elseif model_name == :d3d_efit01_coils
         filename = dirname(@__DIR__) * "/models/model_efit01_coils.bson"
     elseif model_name == :d3d_cakenn_free
-        filename = dirname(@__DIR__) * "/models/model_cakenn_free.bson"
+        if version == :v2
+            filename = dirname(@__DIR__) * "/models/model_cakenn_free.bson"
+        elseif version == :v1
+            filename = dirname(@__DIR__) * "/models/model_cakenn_free_v1.bson"
+        else
+            error("Unknown version $version for $model_name; expected :v1 or :v2")
+        end
     elseif model_name == :d3d_cakenn_coils
         filename = dirname(@__DIR__) * "/models/model_cakenn_coils.bson"
     end
