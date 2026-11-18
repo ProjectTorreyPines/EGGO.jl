@@ -39,6 +39,13 @@ pend = 0.1
     @test Jt !== nothing
     @test psirz !== nothing
     @test Ip !== nothing
+
+    # external flux from coil currents that VacuumFields fits to the boundary (use_vacuumfield_green)
+    coils = [EGGO.VacuumFields.PointCoil(1.7 + 1.2 * cos(θ), 1.9 * sin(θ)) for θ in range(0, 2π, 19)[1:end-1]]
+    green.ggridfc_vf = EGGO.VacuumFields.Green_table(green.rgrid, green.zgrid, coils)
+    Jt_vf, psirz_vf, Ip_vf = EGGO.predict_model_from_boundary(Rb_target, Zb_target, pp_fit, ffp_fit, NNmodel, green, basis_functions, coils, Ip_target, true)
+    @test size(psirz_vf) == size(psirz)
+    @test all(isfinite, psirz_vf)
 end
 
 @testset "test_efit01_coils" begin
