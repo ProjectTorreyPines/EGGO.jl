@@ -297,8 +297,8 @@ function calculate_psiext(
         dΨpl_dZ = (x, y) -> Interpolations.gradient(Ψpl_itp, x, y)[2]
         fixed_coils = coils[fixed]
         active_coils = isempty(fixed_coils) ? coils : coils[setdiff(eachindex(coils), fixed)]
-        flux_cps = VacuumFields.FluxControlPoint{Real}[]
-        saddle_cps = VacuumFields.SaddleControlPoint{Real}[]
+        flux_cps = VacuumFields.FluxControlPoint{T}[]
+        saddle_cps = VacuumFields.SaddleControlPoint{T}[]
 
         fcurrt_vf = VacuumFields.find_coil_currents!(active_coils, Ψpl_itp, dΨpl_dR, dΨpl_dZ; iso_cps, flux_cps, saddle_cps, fixed_coils, λ_regularize=-1.0)[1]
 
